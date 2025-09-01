@@ -1,0 +1,5 @@
+[
+  { "id": "e1", "budget": 2025, "project": "24640", "date": "2025-08-22", "categories": ["ציוד"], "amount": 850.5, "invoice_description": "ערכת ניסויים", "supplier_name": "מעבדוטק", "status": "APPROVED", "user_id": 1 },
+  { "id": "e2", "budget": 2025, "project": "24864", "date": "2025-08-25", "categories": ["שירות"], "amount": 1200, "invoice_description": "הדרכה", "supplier_name": "רובו-פרו", "status": "PAID", "user_id": 1 },
+  { "id": "e3", "budget": 2025, "project": "24640-extra-note", "date": "2025-09-01", "categories": "ציוד", "amount": 400, "invoice_description": "כבלים", "supplier_name": "אלקטרוניקה בע\"מ", "status": "APPROVED", "user_id": 1 }
+]
