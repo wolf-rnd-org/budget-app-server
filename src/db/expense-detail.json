@@ -1,0 +1,17 @@
+{
+  "id": "exp_001",
+  "budget": 2025,
+  "project": "מחנה קיץ לדוגמה",
+  "date": "2025-06-15",
+  "categories": ["מחנה", "הגברה"],
+  "amount": 1250.00,
+  "invoice_description": "שירותים למחנה קיץ",
+  "supplier_name": "ספק לדוגמה בע\"מ",
+  "invoice_file": "https://example.com/invoice.pdf",
+  "business_number": "123456789",
+  "invoice_type": "חשבונית מס",
+  "bank_details_file": "https://example.com/bank.pdf",
+  "supplier_email": "supplier@example.com",
+  "status": "pending",
+  "user_id": "101"
+}

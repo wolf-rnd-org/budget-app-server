@@ -1,0 +1,10 @@
+{
+  "supplier_name": "ספק לדוגמה בע\"מ",
+  "business_number": "123456789",
+  "invoice_type": "חשבונית מס",
+  "invoice_description": "שירותים למחנה קיץ 2025",
+  "amount": 1250.00,
+  "project": "מחנה קיץ 2025",
+  "bank_details_file": "",
+  "supplier_email": "supplier@example.com"
+}
