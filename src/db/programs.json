@@ -1,4 +1,74 @@
 [
-  { "id": "24640", "name": "תכנית מדעים", "budget": 25000, "extra_budget": 5000, "year": 2025 },
-  { "id": "24864", "name": "תכנית רובוטיקה", "budget": 30000, "extra_budget": 0, "year": 2025 }
+  {
+    "name": "אלול אבג",
+    "budget": 21000.0,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": null,
+    "grade": "כיתות ט, י, יא",
+    "user_id": 101
+  },
+  {
+    "name": "אסיפת סמינר ערב ר\"ה",
+    "budget": 100000.0,
+    "extra_budget": 60907,
+    "year": "פ''ה",
+    "date": null,
+    "grade": "כל הסמינר",
+    "user_id": 101
+  },
+  {
+    "name": "מחנה חורף ה",
+    "budget": 10000.0,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": null,
+    "grade": null,
+    "user_id": 101
+  },
+  {
+    "name": "קו אחד",
+    "budget": 2000.0,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": null,
+    "grade": "כל הסמינר",
+    "user_id": 101
+  },
+  {
+    "name": "צניעות שנתי",
+    "budget": 1000000.0,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": null,
+    "grade": "כל הסמינר",
+    "user_id": 101
+  },
+  {
+    "name": "קישוט קיר",
+    "budget": 33000.0,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": null,
+    "grade": "כללי",
+    "user_id": 101
+  },
+  {
+    "name": "יום גיבוש רכזות חברתיות",
+    "budget": 20000.0,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": "2024-11-03",
+    "grade": "צוות",
+    "user_id": 101
+  },
+  {
+    "name": "שמחת בית השואבה כיתות ד ה ו",
+    "budget": null,
+    "extra_budget": null,
+    "year": "פ''ה",
+    "date": "2024-11-03",
+    "grade": "כיתות יב, כיתות יד, כיתות יג",
+    "user_id": 101
+  }
 ]

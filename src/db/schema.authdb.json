@@ -1,0 +1,7 @@
+{
+  "UsersTBL": ["UserId","Email","FirstName","LastName","PasswordHash"],
+  "GroupsTBL": ["GroupId","GroupName","ApplicationId"],
+  "UsersGroups": ["UserId","GroupId"],
+  "ApplicationsTBL": ["ApplicationId","ApplicationName"],
+  "ActionsTBL": ["ActionId","ActionName","ApplicationId"]
+}

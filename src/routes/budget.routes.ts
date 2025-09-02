@@ -1,21 +1,19 @@
 import { Router } from "express";
-import { z } from "zod";
 import { getBudgetSummary } from "../services/budget.service.js";
 
 const r = Router();
 
-const QuerySchema = z.object({
-  program_id: z.union([z.string(), z.coerce.number()]),
-});
-
+// GET /budget/summary?program_id=...
 r.get("/summary", async (req, res, next) => {
   try {
-    const { program_id } = QuerySchema.parse(req.query);
-    const summary = await getBudgetSummary(program_id);
+    const programId = String(req.query.program_id || "").trim();
+    if (!programId) return res.status(400).json({ error: "program_id is required" });
+
+    const summary = await getBudgetSummary(programId);
+    if (!summary) return res.status(404).json({ error: `No summary for program_id "${programId}"` });
+
     res.json(summary);
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
 export default r;

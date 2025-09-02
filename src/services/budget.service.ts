@@ -1,58 +1,38 @@
 import { readJson } from "../utils/fileDB.js";
-import { ProgramSchema } from "../models/program.js";
-import type { Program } from "../models/program.js";
-import { ExpenseSchema } from "../models/expense.js";
-import type { Expense } from "../models/expense.js";
+import { z } from "zod";
 
-export type BudgetSummary = {
-  program_id: string;
-  total_budget: number;
-  total_expenses: number;
-  remaining_balance: number;
-};
+const SummarySchema = z.object({
+  program_id: z.string(),
+  total_budget: z.number(),
+  total_expenses: z.number(),
+  remaining_balance: z.number(),
+});
+export type BudgetSummary = z.infer<typeof SummarySchema>;
 
-async function loadPrograms(): Promise<Program[]> {
-  const items = await readJson<unknown>("programs.json");
-  // ולידציה רכה למערך
-  if (!Array.isArray(items)) throw new Error("programs.json must be an array");
-  return items.map((it) => ProgramSchema.parse(it));
-}
-
-async function loadExpenses(): Promise<Expense[]> {
-  const items = await readJson<unknown>("expenses.json");
-  if (!Array.isArray(items)) throw new Error("expenses.json must be an array");
-  return items.map((it) => ExpenseSchema.parse(it));
-}
-
-/**
- * חישוב תקציר לפי מזהה תוכנית.
- * תומך גם במקרה שבו expense.project מכיל את ה-id (includes) — כדי להתיישר עם ה-mock של הקליינט.
- */
-export async function getBudgetSummary(programId: string | number): Promise<BudgetSummary> {
-  const pid = String(programId);
-  const programs = await loadPrograms();
-  const program = programs.find((p) => String(p.id) === pid);
-  if (!program) {
-    const err = new Error("Program not found");
-    (err as any).status = 404;
+/** מחזיר סיכום תקציב לפי program_id.
+ * קורא מ-summary.json; אם לא קיים, (אופציונלי) מחשב מ-expenses.json כ-fallback. */
+export async function getBudgetSummary(programId: string): Promise<BudgetSummary | null> {
+  const summariesRaw = await readJson<unknown>("summary.json");
+  if (!Array.isArray(summariesRaw)) {
+    const err = new Error("summary.json must be an array");
+    (err as any).status = 500;
     throw err;
   }
+  const summaries = summariesRaw.map((x) => SummarySchema.parse(x));
+  const found = summaries.find((s) => s.program_id === programId);
+  if (found) return found;
 
-  const totalBudget = (program.budget ?? 0) + (program.extra_budget ?? 0);
-
-  const expenses = await loadExpenses();
-  const related = expenses.filter((e) => {
-    const proj = String(e.project ?? "");
-    return proj === pid || proj.includes(pid);
-  });
-
-  const totalExpenses = related.reduce((sum, e) => sum + (e.amount ?? 0), 0);
-  const remaining = totalBudget - totalExpenses;
+  // Fallback אופציונלי: חישוב מסכום ההוצאות אם אין רשומה מוכנה
+  // אם לא רוצים fallback – אפשר פשוט להחזיר null כאן.
+  const expenses = await readJson<any[]>("expenses.json");
+  const total_expenses = (expenses || [])
+    .filter(e => typeof e.project === "string" && e.project.includes(programId))
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   return {
-    program_id: pid,
-    total_budget: Number(totalBudget.toFixed(2)),
-    total_expenses: Number(totalExpenses.toFixed(2)),
-    remaining_balance: Number(remaining.toFixed(2)),
+    program_id: programId,
+    total_budget: 0,
+    total_expenses,
+    remaining_balance: 0 - total_expenses,
   };
 }

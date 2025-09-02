@@ -1,0 +1,7 @@
+{
+  "userId": 101,
+  "email": "user@example.com",
+  "firstName": "Naomi",
+  "lastName": "Masing",
+  "features": ["expenses.view","expenses.create","reports.view"]
+}

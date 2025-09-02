@@ -1,5 +1,952 @@
 [
-  { "id": "e1", "budget": 2025, "project": "24640", "date": "2025-08-22", "categories": ["ציוד"], "amount": 850.5, "invoice_description": "ערכת ניסויים", "supplier_name": "מעבדוטק", "status": "APPROVED", "user_id": 1 },
-  { "id": "e2", "budget": 2025, "project": "24864", "date": "2025-08-25", "categories": ["שירות"], "amount": 1200, "invoice_description": "הדרכה", "supplier_name": "רובו-פרו", "status": "PAID", "user_id": 1 },
-  { "id": "e3", "budget": 2025, "project": "24640-extra-note", "date": "2025-09-01", "categories": "ציוד", "amount": 400, "invoice_description": "כבלים", "supplier_name": "אלקטרוניקה בע\"מ", "status": "APPROVED", "user_id": 1 }
+  {
+    "id": "exp_001",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-06-04",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 437.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "אוראל ווליום",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "516700903",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "orelsystems@gmail.com",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_002",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-06-07",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 575.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "קליינס פתרונות תחבורה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "515723591",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "kpt037520809@gmail.com",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_003",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-06-10",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 712.5,
+    "invoice_description": "אולם למחנה",
+    "supplier_name": "דטה פרינט",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "513564690",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "acc@dataprint.co.il",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_004",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-06-13",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": 850.0,
+    "invoice_description": "הגברה למחנה",
+    "supplier_name": "אביבה אירועים",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "513372086",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "office2@aviva-e.co.il",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_005",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-06-16",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 987.5,
+    "invoice_description": "זיץ למחנה",
+    "supplier_name": "מועצה איזורית מגידו",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "500223136",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_006",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-06-19",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 1125.0,
+    "invoice_description": "טיול באתנחתא",
+    "supplier_name": "א.ש סמארט פרינט בע\"מ",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "516881497",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "a.ssmartprint@gmail.com",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_007",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-06-22",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 1262.5,
+    "invoice_description": "ארוחה נוספת למחנה",
+    "supplier_name": "נס סגא לדים ומולטימדיה בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "516357670",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "office@nessled.com",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_008",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-06-25",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 1400.0,
+    "invoice_description": "אחר מחנה",
+    "supplier_name": "קשת במות",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "513773440",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "office@kstisrael.co.il",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_009",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-06-28",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 1537.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "מזנון פארק ג'ננה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "322530122",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "as0573106060@gmail.com",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_010",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-07-01",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 1675.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "רותי שפירא",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "322354622",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "r0533136412@gmail.com",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_011",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-07-04",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": 1812.5,
+    "invoice_description": "אולם למחנה",
+    "supplier_name": "שמחונים שי בעמ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "513911958",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_012",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-07-07",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 1950.0,
+    "invoice_description": "הגברה למחנה",
+    "supplier_name": "אפרת מן הפקות מוזיקה",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "331162149",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "efratmanmusic@gmail.com",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_013",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-07-10",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 2087.5,
+    "invoice_description": "זיץ למחנה",
+    "supplier_name": "שירה מוזיקה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "327884540",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "S0548506035@GMAIL.COM",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_014",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-07-13",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 2225.0,
+    "invoice_description": "טיול באתנחתא",
+    "supplier_name": "tvm itd",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "513689695",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "?",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_015",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-07-16",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": -35.0,
+    "invoice_description": "זיכוי/קיזוז",
+    "supplier_name": "בפועל ש. גולדשטיין",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "326035128",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_016",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-07-19",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 2500.0,
+    "invoice_description": "אחר מחנה",
+    "supplier_name": "מ. ש. י שאלתיאל בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "514546928",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "sales@logotex.co.il",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_017",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-07-22",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 2637.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "מנגינה שבלב",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "580800639",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "ml3203232@gmail.com",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_018",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-07-25",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": 2775.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "א.ש סמארט פרינט בע\"מ",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "516881497",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "a.ssmartprint@gmail.com",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_019",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-07-28",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 2912.5,
+    "invoice_description": "אולם למחנה",
+    "supplier_name": "שלומי טקו",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "333993384",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "shlomo2776@gmail.com",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_020",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-07-31",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 3050.0,
+    "invoice_description": "הגברה למחנה",
+    "supplier_name": "אפרת מן",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "331162149",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "efratmanmusic@gmail.com",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_021",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-08-03",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 3187.5,
+    "invoice_description": "זיץ למחנה",
+    "supplier_name": "אוראל ווליום",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "516700903",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "orelsystems@gmail.com",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_022",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-08-06",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 3325.0,
+    "invoice_description": "טיול באתנחתא",
+    "supplier_name": "קליינס פתרונות תחבורה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "515723591",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "kpt037520809@gmail.com",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_023",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-08-09",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 3462.5,
+    "invoice_description": "ארוחה נוספת למחנה",
+    "supplier_name": "דטה פרינט",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "513564690",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "acc@dataprint.co.il",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_024",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-08-12",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 3600.0,
+    "invoice_description": "אחר מחנה",
+    "supplier_name": "אביבה אירועים",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "513372086",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "office2@aviva-e.co.il",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_025",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-08-15",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": 3737.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "מועצה איזורית מגידו",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "500223136",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_026",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-08-18",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 3875.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "א.ש סמארט פרינט בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "516881497",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "a.ssmartprint@gmail.com",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_027",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-08-21",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 4012.5,
+    "invoice_description": "אולם למחנה",
+    "supplier_name": "נס סגא לדים ומולטימדיה בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "516357670",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "office@nessled.com",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_028",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-08-24",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 4150.0,
+    "invoice_description": "הגברה למחנה",
+    "supplier_name": "קשת במות",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "513773440",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "office@kstisrael.co.il",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_029",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-08-27",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 4287.5,
+    "invoice_description": "זיץ למחנה",
+    "supplier_name": "מזנון פארק ג'ננה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "322530122",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "as0573106060@gmail.com",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_030",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-08-30",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 4425.0,
+    "invoice_description": "טיול באתנחתא",
+    "supplier_name": "רותי שפירא",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "322354622",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "r0533136412@gmail.com",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_031",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-06-02",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 4562.5,
+    "invoice_description": "ארוחה נוספת למחנה",
+    "supplier_name": "שמחונים שי בעמ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "513911958",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_032",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-06-05",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": -35.0,
+    "invoice_description": "זיכוי/קיזוז",
+    "supplier_name": "אפרת מן הפקות מוזיקה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "331162149",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "efratmanmusic@gmail.com",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_033",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-06-08",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 4837.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "שירה מוזיקה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "327884540",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "S0548506035@GMAIL.COM",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_034",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-06-11",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 4975.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "tvm itd",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "513689695",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "?",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_035",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-06-14",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 5112.5,
+    "invoice_description": "אולם למחנה",
+    "supplier_name": "בפועל ש. גולדשטיין",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "326035128",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_036",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-06-17",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 5250.0,
+    "invoice_description": "הגברה למחנה",
+    "supplier_name": "מ. ש. י שאלתיאל בע\"מ",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "514546928",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "sales@logotex.co.il",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_037",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-06-20",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 5387.5,
+    "invoice_description": "זיץ למחנה",
+    "supplier_name": "מנגינה שבלב",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "580800639",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "ml3203232@gmail.com",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_038",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-06-23",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 5525.0,
+    "invoice_description": "טיול באתנחתא",
+    "supplier_name": "א.ש סמארט פרינט בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "516881497",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "a.ssmartprint@gmail.com",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_039",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-06-26",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": 5662.5,
+    "invoice_description": "ארוחה נוספת למחנה",
+    "supplier_name": "שלומי טקו",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "333993384",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "shlomo2776@gmail.com",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_040",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-06-29",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 5800.0,
+    "invoice_description": "אחר מחנה",
+    "supplier_name": "אפרת מן",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "331162149",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "efratmanmusic@gmail.com",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_041",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-07-02",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 5937.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "אוראל ווליום",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "516700903",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "orelsystems@gmail.com",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_042",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-07-05",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 6075.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "קליינס פתרונות תחבורה",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "515723591",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "kpt037520809@gmail.com",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_043",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-07-08",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 6212.5,
+    "invoice_description": "אולם למחנה",
+    "supplier_name": "דטה פרינט",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "513564690",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "acc@dataprint.co.il",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_044",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-07-11",
+    "categories": [
+      "מחנה ד"
+    ],
+    "amount": 6350.0,
+    "invoice_description": "הגברה למחנה",
+    "supplier_name": "אביבה אירועים",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "513372086",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "office2@aviva-e.co.il",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  },
+  {
+    "id": "exp_045",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-07-14",
+    "categories": [
+      "אתנחתא"
+    ],
+    "amount": 6487.5,
+    "invoice_description": "זיץ למחנה",
+    "supplier_name": "מועצה איזורית מגידו",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recatLbzVxHGkkB1L/fldCMOFvFACM7PCQn/attOHm3AqxdfqyDK5",
+    "business_number": "500223136",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "",
+    "status": "שולם הסתים טיפול",
+    "user_id": 101
+  },
+  {
+    "id": "exp_046",
+    "budget": 2025,
+    "project": "24640 תנועת בתיה תנועה בתנועה",
+    "date": "2025-07-17",
+    "categories": [
+      "יום עיון מורות"
+    ],
+    "amount": 6625.0,
+    "invoice_description": "טיול באתנחתא",
+    "supplier_name": "א.ש סמארט פרינט בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec1QGIODDwdihi8G/fldCMOFvFACM7PCQn/attZcPmfDB85J8c6I",
+    "business_number": "516881497",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "a.ssmartprint@gmail.com",
+    "status": "חדש - ממתין להנהל''ח",
+    "user_id": 101
+  },
+  {
+    "id": "exp_047",
+    "budget": 2025,
+    "project": "אהל אברהם",
+    "date": "2025-07-20",
+    "categories": [
+      "אחר מחנה"
+    ],
+    "amount": 6762.5,
+    "invoice_description": "ארוחה נוספת למחנה",
+    "supplier_name": "נס סגא לדים ומולטימדיה בע\"מ",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rechVwP6dO90UYM3f/fldCMOFvFACM7PCQn/attgW98yAWTEIqB0T",
+    "business_number": "516357670",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://example.com/bank/details.pdf",
+    "supplier_email": "office@nessled.com",
+    "status": "pending",
+    "user_id": 101
+  },
+  {
+    "id": "exp_048",
+    "budget": 2025,
+    "project": "גפן סמינר הרב וולף",
+    "date": "2025-07-23",
+    "categories": [
+      "הגברה"
+    ],
+    "amount": 6900.0,
+    "invoice_description": "אחר מחנה",
+    "supplier_name": "קשת במות",
+    "invoice_file": "https://example.com/invoices/sample.pdf",
+    "business_number": "513773440",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "",
+    "supplier_email": "office@kstisrael.co.il",
+    "status": "approved",
+    "user_id": 101
+  },
+  {
+    "id": "exp_049",
+    "budget": 2025,
+    "project": "מכון בית יעקב - מיועד ליום עיון מורות 111900",
+    "date": "2025-07-26",
+    "categories": [
+      "זיץ למחנה"
+    ],
+    "amount": 7037.5,
+    "invoice_description": "תוכנית פתיחה למחנה",
+    "supplier_name": "מזנון פארק ג'ננה",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec3X34996k7xfbqZ/fldCMOFvFACM7PCQn/attjchqZgDurEDSUd",
+    "business_number": "322530122",
+    "invoice_type": "חשבונית מס",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/rec7RYBQJ85b9oimD/fldhzmeHDIJtc8jTi/att6arSHJgwGZ61EB",
+    "supplier_email": "as0573106060@gmail.com",
+    "status": "הועבר לתשלום",
+    "user_id": 101
+  },
+  {
+    "id": "exp_050",
+    "budget": 2025,
+    "project": "24864 פנאי למידה העשרה וחוויה תנועת בתיה",
+    "date": "2025-07-29",
+    "categories": [
+      "מחנה"
+    ],
+    "amount": 7175.0,
+    "invoice_description": "תוכנית נוספת למחנה",
+    "supplier_name": "רותי שפירא",
+    "invoice_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldCMOFvFACM7PCQn/attiiBpHHslWMo135",
+    "business_number": "322354622",
+    "invoice_type": "חשבון עסקה",
+    "bank_details_file": "https://airtable.com/app5rFUGWxMmUtlBU/tbl5603cDVKsEbqXX/recK5loF3wrsOGMoD/fldhzmeHDIJtc8jTi/att4keRHLGme9XQ9O",
+    "supplier_email": "r0533136412@gmail.com",
+    "status": "שולם ממתין לקבלה",
+    "user_id": 101
+  }
 ]
