@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev2": "node ./node_modules/tsx/dist/cli.mjs watch src/server.ts",
     "start": "tsx src/server.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -12,6 +13,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@supabase/supabase-js": "^2.56.1",
+    "airtable": "^0.12.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
