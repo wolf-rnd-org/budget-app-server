@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as svc from "../services/programs.service.js";
+import { getProgramSummary } from "../services/programs.service.js";
 
 const r = Router();
 
@@ -10,7 +11,17 @@ r.get("/", async (_req, res, next) => {
     res.json(data);
   } catch (e) { next(e); }
 });
+r.get("/summary", async (req, res, next) => {
+  try {
+    const programId = String(req.query.program_id || "").trim();
+    if (!programId) return res.status(400).json({ error: "program_id is required" });
 
+    const summary = await getProgramSummary(programId);
+    if (!summary) return res.status(404).json({ error: `No summary for program_id "${programId}"` });
+
+    res.json(summary);
+  } catch (e) { next(e); }
+});
 // GET /programs/:param    → קודם כ-userId, אם אין/ריק ננסה כ-programId
 r.get("/:param", async (req, res, next) => {
   try {
