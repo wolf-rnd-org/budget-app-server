@@ -9,13 +9,14 @@ import authRoutes from "./routes/auth.routes.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use("/auth", authRoutes);
+
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/budget", budgetRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/programs", programsRoutes);
+app.use("/auth", authRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
