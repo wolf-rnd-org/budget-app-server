@@ -19,3 +19,10 @@ build/
 Thumbs.db
 .idea/
 .vscode/
+
+secrets/
+*.key
+*.pem
+*.p12
+*.crt
+*.der
