@@ -1,4 +1,6 @@
 import { readJson } from "../utils/fileDB.js"; // או fileDB.js בהתאם לשם
+import { base } from "../utils/airtableConfig.js";
+
 import { z } from "zod";
 
 const ExpenseSchema = z.object({
@@ -57,3 +59,75 @@ export async function list(params: {
 
   return { data, hasMore, totalCount };
 }
+
+                        
+type AirtableRow = Record<string, any>;
+
+
+  
+export async function getExpenses (
+  programId: string,
+  page: number = 1,
+  pageSize: number = 50
+): Promise<{ data: AirtableRow[]; hasMore: boolean; totalCount: number }> {
+  const esc = programId.replace(/"/g, '\\"');
+
+  // מאתרים את רשומת ה-Program לפי program_id (טקסט בטבלת "programs")
+  const [program] = await base("programs")
+    .select({ filterByFormula: `{program_id} = "${esc}"`, maxRecords: 1, pageSize: 1 })
+    .all();
+
+  // אם לא נמצאה תכנית – מחזירים מבנה ריק
+  if (!program) return { data: [], hasMore: false, totalCount: 0 };
+
+  // פילטר שמכסה גם Linked Record וגם טקסט רגיל ב-Expenses
+  const filter = `OR(FIND("${program.id}", ARRAYJOIN({program_id})), {program_id} = "${esc}")`;
+
+  const fieldsToReturn = [
+    "expense_id",
+    "budget_id",
+    "program_id",
+    "date",
+    "categories",
+    "amount",
+    "invoice_description",
+    "supplier_name",
+    "invoice_file",
+    "business_number",
+    "invoice_type",
+    "bank_details_file",
+    "supplier_email",
+    "status",
+    "user_id",
+  ];
+
+  const start = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
+  const endExclusive = start + Math.max(1, pageSize);
+
+  const data: AirtableRow[] = [];
+  let totalCount = 0;
+
+  // נריץ את כל העמודים כדי לקבל totalCount מדויק, ונאסוף רק את הטווח של הדף המבוקש
+  await base("expenses")
+    .select({
+      filterByFormula: filter,
+     // fields: fieldsToReturn,
+      pageSize: 100, // גודל עמוד פנימי מול Airtable; לא קשור ל-pageSize של הלקוח
+    })
+    .eachPage((records, fetchNextPage) => {
+      for (const rec of records) {
+        const globalIndex = totalCount; // לפני ההגדלה
+        if (globalIndex >= start && globalIndex < endExclusive) {
+          console.log(rec.fields, rec.fields.status);
+          
+          data.push({ id: rec.id, ...rec.fields });
+        }
+        totalCount++;
+      }
+      fetchNextPage();
+    });
+
+  const hasMore = totalCount > endExclusive;
+
+  return { data, hasMore, totalCount };
+}  
