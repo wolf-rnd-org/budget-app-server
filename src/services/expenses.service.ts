@@ -118,8 +118,6 @@ export async function getExpenses (
       for (const rec of records) {
         const globalIndex = totalCount; // לפני ההגדלה
         if (globalIndex >= start && globalIndex < endExclusive) {
-          console.log(rec.fields, rec.fields.status);
-          
           data.push({ id: rec.id, ...rec.fields });
         }
         totalCount++;
