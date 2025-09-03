@@ -11,6 +11,7 @@ r.get("/", async (_req, res, next) => {
     res.json(data);
   } catch (e) { next(e); }
 });
+
 r.get("/summary", async (req, res, next) => {
   try {
     const programId = String(req.query.program_id || "").trim();
@@ -22,6 +23,7 @@ r.get("/summary", async (req, res, next) => {
     res.json(summary);
   } catch (e) { next(e); }
 });
+
 // GET /programs/:param    → קודם כ-userId, אם אין/ריק ננסה כ-programId
 r.get("/:param", async (req, res, next) => {
   try {

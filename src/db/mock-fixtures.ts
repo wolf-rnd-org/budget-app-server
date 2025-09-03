@@ -1,57 +1,40 @@
-// mock-fixtures.ts
-// מאגר טקסטי דמו לבדיקה – אפשר להרחיב לפי הצורך
-
+// src/mocks/mock-fixtures.ts
 export const MOCKS: Record<string, string> = {
-  en_simple: `
-Tax Invoice
-Supplier: ACME Ltd.
-Company ID / VAT: 512345678
-Invoice No: 2024-0917
-Total: 1,234.56
-Email: billing@acme.com
-Project: Wolf R&D - Budget App
-`,
-
-  he_invoice: `
-חשבונית מס
-שם עסק: אהבה קטנה בע"מ
-ח.פ: 515555555
-מס' חשבונית: 100234
-סה"כ: 3,280.00
-דוא"ל: finance@ahava-ktana.co.il
-פרויקט: ניהול תקציבים
-`,
-
-  mixed_he_en: `
-Tax Invoice חשבונית
-Business Name: "Studio R&L" שם עסק
-VAT / ח"פ: 514444444
-INV-00987
-Total / סה"כ: 2,450.75
-Supplier email: accounts@studio-rl.com
-Project: Budget Pilot פיילוט
-`,
-
-  noisy_scan: `
-...INV .... 000123   VAT 513333333
-Total: 980.00     Supplier: FooBar Ltd
-email:   pay@foobar.io
-חשבונית מס / Invoice
-`,
-
-  complex_demo: `
-חשבונית מס  #2025-0098
-ספק: חברת "BlueSky Digital" בע"מ
-ח.פ: 514332211
-תאריך: 01/09/2025
-סה"כ לתשלום: 4,875.90 ₪ (כולל מע"מ)
-פרויקט: BudgetApp Pilot – שלב ב'
-
-נא לשלם בהעברה בנקאית:
-בנק הפועלים 12, סניף 123, חשבון 456789
-קובץ פרטי חשבון מצורף במייל.
-
-Contact: billing@bluesky.io
-טלפון שירות: 03-7771234
-`,
+  full: `...`,
+  noisy: `...`,
+  mini: `...`,
+  allCases: `
+חשבונית מס / TAX INVOICE ★★★
+שם ספק: אהבה קטנה בע"מ / Ahava Ktana LTD
+Business Name?? AHAVA-KTANA ✨ (duplicate!)
+ח״פ: 515123456 , VAT ID: 0515123456 , ח.פ 515123456 (שלוש גרסאות שונות)
+Invoice No: INV-2024/1783, וגם "חשבונית #1783" וגם 20241783 סתם
+סה"כ לתשלום: 3,215.50₪ , Total=3215.50 , סך הכל: 3215,5 , USD $3,215.50
+--
+Project: BudgetApp Phase 1 (פרויקט א') --- אבל גם Project=Wolf R&D?
+תיאור: Development + QA --- אבל מופיע גם "שירותי פיתוח • בדיקות" בשורה אחרת
+---
+Supplier Email: billing@ahavaktana.co.il
+עוד מייל? BILLING (at) AHAVAKTANA . CO . IL
+אולי בכלל info@ahavaktana.co.il???
+---
+Bank details attached: YES!! ראה קובץ מצורף בשם bank.pdf
+(אבל גם כתוב: "אין לצרף פרטי בנק")
+--
+שורות ג'יבריש:
+@@@### asdlkj123 -- אבגדהוז 😅😁 ♥♦♣♠
+---- תווים מוזרים ---- { } [ ] ( ) <>
+┌───────────────┐
+│  Hash: #abc123 │
+└───────────────┘
+חוזר שוב: Invoice Invoice Invoice חשבונית מס חשבונית עסקה 
+  `,
 };
+export function getMockText(name?: string): string {
+  if (name && MOCKS[name]) return MOCKS[name]!;
+  return MOCKS.allCases ?? ""; // ברירת מחדל
+}
+
+export function listMockNames(): string[] {
+  return Object.keys(MOCKS);
+}
