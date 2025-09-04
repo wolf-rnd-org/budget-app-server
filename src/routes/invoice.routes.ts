@@ -1,138 +1,132 @@
 // import { Router, type Request, type Response } from "express";
 // import multer from "multer";
-// import { GoogleGenerativeAI } from "@google/generative-ai";
 // import vision from "@google-cloud/vision";
-// import { z } from "zod";
+// import { GoogleGenerativeAI } from "@google/generative-ai";
+// import PDFParser from "pdf2json";
+// import path from "node:path";
+// import { getMockText } from "../db/mock-fixtures.js";
 
 
 
 // const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 10);
-
-// // ---- storage & filter ----
-// const upload = multer({
-//     storage: multer.memoryStorage(),
-//     limits: { fileSize: MAX_FILE_MB * 1024 * 1024, files: 2, parts: 3 },
-//     fileFilter: (_req, file, cb) => {
-//         const ok = [
-//             "application/pdf",
-//             "image/png",
-//             "image/jpeg",
-//             "image/jpg",
-//             "image/webp",
-//             "image/tiff",
-//             "image/heic",
-//             "image/heif",
-//         ].includes(file.mimetype);
-//         if (!ok) return cb(new Error("Unsupported file type"));
-//         cb(null, true);
-//     },
-// });
-
 // const router = Router();
 
-// // ---- OCR clients ----
-// const visionClient = new vision.ImageAnnotatorClient(); // משתמש ב-GOOGLE_APPLICATION_CREDENTIALS
+// // ---- Multer (פשוט, לזיכרון) ----
+// const upload = multer({
+//     storage: multer.memoryStorage(),
+//     limits: { fileSize: MAX_FILE_MB * 1024 * 1024, files: 2 },
+// });
+
+// const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS
+//     ? path.isAbsolute(process.env.GOOGLE_APPLICATION_CREDENTIALS)
+//         ? process.env.GOOGLE_APPLICATION_CREDENTIALS
+//         : path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS)
+//     : path.resolve(process.cwd(), "secrets", "sa.json");
+
+
+
+// // ---- OCR/LLM ----
+// const visionClient = new vision.ImageAnnotatorClient({ keyFilename: keyFile }); // דורש GOOGLE_APPLICATION_CREDENTIALS
 // const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 // const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
-// // ---- ParsedInvoiceData schema (לפי ההגדרה שלך) ----
-// const ParsedSchema = z.object({
-//     supplier_name: z.string().optional().default(""),
-//     business_number: z.string().optional().default(""),
-//     invoice_type: z.string().optional().default(""),
-//     invoice_description: z.string().optional().default(""),
-//     amount: z.number().optional().default(0),
-//     project: z.string().optional().default(""),
-//     bank_details_file: z.string().optional().nullable().default(null),
-//     supplier_email: z.string().email().optional().default(""),
-// });
-// type ParsedInvoiceData = z.infer<typeof ParsedSchema>;
-
-// // ---- helpers ----
+// // ---- עזרות ----
 // function normalizeRtl(raw: string) {
-//     return raw
-//         .replace(/[\u200e\u200f]/g, "") // strip bidi marks
+//     return (raw || "")
+//         .replace(/[\u200e\u200f]/g, "")
 //         .replace(/[“”״]/g, '"')
 //         .replace(/[’׳]/g, "'")
 //         .replace(/\t/g, " ")
 //         .replace(/[ \u00A0]+/g, " ")
 //         .trim();
 // }
+// function extractFirstJsonObject(s: string): any | null {
+//     if (!s) return null;
 
-// async function ocrFromImageBuffer(buf: Buffer) {
-//     const [result] = await visionClient.documentTextDetection({
-//         image: { content: buf },
-//         imageContext: {
-//             // אפשר לתת רמזי שפה (רשות)
-//             languageHints: ["iw", "en"],
-//         },
-//     });
+//     // מסיר גדרות קוד ``` ותג json
+//     let cleaned = s
+//         .replace(/```json/gi, "")
+//         .replace(/```/g, "")
+//         .trim();
 
-//     return result.fullTextAnnotation?.text ?? "";
+//     // לפעמים המודל מחזיר פסאודו-מפתחות בגרשיים חכמים
+//     cleaned = cleaned.replace(/[“”]/g, '"').replace(/[’]/g, "'");
+
+//     // ניסיון ראשון: parse ישיר
+//     try {
+//         return JSON.parse(cleaned);
+//     } catch { }
+
+//     // חיפוש האובייקט הראשון {...} בטקסט
+//     const start = cleaned.indexOf("{");
+//     const end = cleaned.lastIndexOf("}");
+//     if (start >= 0 && end > start) {
+//         const mid = cleaned.slice(start, end + 1);
+
+//         // תיקון קל ל-trailing commas: ,} או ,]
+//         const midNoTrailingCommas = mid
+//             .replace(/,\s*}/g, "}")
+//             .replace(/,\s*]/g, "]");
+
+//         try {
+//             return JSON.parse(midNoTrailingCommas);
+//         } catch { }
+//     }
+
+//     return null;
 // }
 
-// async function extractText(file: Express.Multer.File): Promise<string> {
-//     const mt = (file.mimetype || "").toLowerCase();
 
-//     if (mt.includes("pdf")) {
-//         // PDF processing skipped - will be handled by Vision API or return empty for fallback
+// async function ocrFromImageBuffer(buf: Buffer) {
+//     try {
+//         const [result] = await visionClient.documentTextDetection({
+//             image: { content: buf },
+//             imageContext: { languageHints: ["he", "en"] },
+//         });
+//         return result.fullTextAnnotation?.text ?? "";
+//     } catch {
 //         return "";
 //     }
+// }
 
-//     if (/image\/(png|jpe?g|webp|tiff|heic|heif)/.test(mt)) {
-//         const text = await ocrFromImageBuffer(file.buffer);
-//         return text.trim();
+// async function extractPdfText(buffer: Buffer): Promise<string> {
+//     return new Promise((resolve, reject) => {
+//         const pdfParser = new PDFParser();
+//         pdfParser.on("pdfParser_dataError", err => reject(err.parserError));
+//         pdfParser.on("pdfParser_dataReady", pdfData => {
+//             const text = pdfParser.getRawTextContent();
+//             resolve(text);
+//         });
+//         pdfParser.parseBuffer(buffer);
+//     });
+// }
+
+// async function extractTextBestEffort(file?: Express.Multer.File): Promise<string> {
+//     if (!file) return "";
+//     const mt = (file.mimetype || "").toLowerCase();
+
+//     try {
+//         if (mt.includes("pdf")) {
+//             // ✅ שימוש ב-pdf2json
+//             const text = (await extractPdfText(file.buffer)).trim();
+//             return text; // גם אם ריק – לא מפילים
+//         }
+
+//         if (/^image\/(png|jpe?g|webp|tiff|heic|heif)$/.test(mt)) {
+//             const text = await ocrFromImageBuffer(file.buffer);
+//             return (text || "").trim();
+//         }
+//     } catch {
+//         // לא מפילים כלום
 //     }
-
 //     return "";
 // }
 
-// // ---- regex “קלים” ----
-// function quickExtract(raw: string): Partial<ParsedInvoiceData> {
-//     const t = normalizeRtl(raw);
-//     const out: Partial<ParsedInvoiceData> = {};
 
-//     const email = t.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
-//     if (email) out.supplier_email = email;
+// async function llmToJson(rawFull: string) {
 
-//     const biz =
-//         t.match(/\b(\d{8,9})\b(?=.*(?:ח\.פ|ח״פ|עוסק|VAT|Tax\s?ID|Company\s?ID))/i)?.[1] ||
-//         t.match(/\b(?:VAT|Tax\s?ID|ח\.פ)\D{0,5}(\d{8,9})\b/i)?.[1];
-//     if (biz) out.business_number = biz;
-
-//     const invNum =
-//         t.match(/(?:Invoice|חשבונית)[^\d]{0,12}(\d{3,12})/i)?.[1] ||
-//         t.match(/\bINV[-\s]?(\d{3,12})\b/i)?.[1];
-//     if (invNum) out.invoice_description = `Invoice #${invNum}`;
-
-//     const invType =
-//         (/(חשבונית מס|Tax Invoice)/i.test(t) && "חשבונית מס") ||
-//         (/(חשבונית עסקה|Invoice)/i.test(t) && "חשבונית עסקה") ||
-//         "";
-//     if (invType) out.invoice_type = invType;
-
-//     const amt = t.match(/(?:Total|סה"?כ|סך הכל)[^\d\-]{0,12}(-?\d{1,3}(?:[,\s]\d{3})*(?:\.\d+)?)/i)?.[1];
-//     if (amt) {
-//         const n = Number(amt.replace(/[,\s]/g, ""));
-//         if (!Number.isNaN(n)) out.amount = n;
-//     }
-
-//     // ספק/שם (best-effort)
-//     const supplier =
-//         t.match(/(?:Supplier|ספק)\s*[:\-]\s*(.+)/i)?.[1]?.split("\n")[0] ||
-//         t.match(/(?:Business Name|שם\s*עסק)\s*[:\-]\s*(.+)/i)?.[1]?.split("\n")[0];
-//     if (supplier) out.supplier_name = supplier.trim();
-
-//     return out;
-// }
-
-// // ---- LLM להשלמות (טקסט בלבד) ----
-// async function llmFill(raw: string, base: Partial<ParsedInvoiceData>): Promise<Partial<ParsedInvoiceData>> {
-//     const interesting = raw
-//         .split(/\n{2,}/)
-//         .filter(p => /(invoice|חשבונית|total|סה"?כ|tax|vat|email|@|ח\.פ|עוסק|supplier|project|bank)/i.test(p))
-//         .join("\n\n")
-//         .slice(0, 8000);
+//     const rawOriginal = rawFull || "";
+//     const rawNormalized = normalizeRtl(rawOriginal);
 
 //     const model = genAI.getGenerativeModel({
 //         model: GEMINI_MODEL,
@@ -144,7 +138,7 @@
 //     });
 
 //     const prompt = [
-//         "החזר JSON בלבד בהתאם לסכמה (ללא טקסט נוסף):",
+//  "החזר אובייקט JSON יחיד (לא מערך), בלי טקסט נוסף ובלי ```:",
 //         `{
 //   "supplier_name": string,
 //   "business_number": string,
@@ -155,404 +149,580 @@
 //   "bank_details_file": string | null,
 //   "supplier_email": string
 // }`,
-//         'אל תנחש. אם ערך לא קיים החזר "" או null. ודא שסכום הוא מספר.',
-//         "טקסט המסמך (he+en):",
+//         'אל תנחש; אם אין ערך החזר "" או null. ודא שסכום הוא number.',
+//         "טקסט מקורי מלא (he+en, ייתכן ג׳יבריש):",
 //         "```",
-//         interesting,
+//         rawOriginal,
 //         "```",
-//     ].join("\n");
+//         "גרסה מנורמלת (סיוע בלבד):",
+//         "```",
+//         rawNormalized,
+//         "```",
+//     ].join("\n\n");
 
-//     const resp = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
 //     try {
-//         return JSON.parse(resp.response.text());
-//     } catch {
+//         console.log("[llmToJson] sending to model:", GEMINI_MODEL, "rawLen:", rawOriginal.length);
+
+//         const resp = await model.generateContent({
+//             contents: [{ role: "user", parts: [{ text: prompt }] }],
+//         });
+
+//         const text = resp.response.text() || "";
+//         console.log("[llmToJson] got text len:", text.length, "preview:", text.slice(0, 120).replace(/\s+/g, " "));
+
+//     const json = extractFirstJsonObject(text);
+//     if (json != null) {
+//       const obj = Array.isArray(json) ? (json[0] ?? {}) : json;
+//       return obj && typeof obj === "object" ? obj : {};
+//     }
+
+//         // ניסיון אחרון — אולי זה כבר JSON נקי
+//         try {
+//             const parsed = JSON.parse(text);
+//       const obj = Array.isArray(parsed) ? (parsed[0] ?? {}) : parsed;
+//       return obj && typeof obj === "object" ? obj : {};
+//         } catch {
+//             console.warn("[llmToJson] parse failed, returning {}");
+//             return {};
+//         }
+//     } catch (e: any) {
+//         console.error("[llmToJson] ERROR:", e?.message || e);
 //         return {};
 //     }
+
 // }
 
-// // ---- Route ----
-// router.post(
-//     "/upload-invoice",
-//     upload.fields([
-//         { name: "invoice", maxCount: 1 },
-//         { name: "bank_details", maxCount: 1 },
-//     ]),
-//     async (req: Request, res: Response) => {
-//         const t0 = Date.now();
-//         try {
-//             const files = req.files as Record<string, Express.Multer.File[]> | undefined;
-//             const inv = files?.invoice?.[0];
-//             if (!inv) return res.status(400).json({ error: "Missing invoice file" });
 
-//             const bank = files?.bank_details?.[0];
+// // ---- Route: תמיד 200 עם אובייקט ----
+// router.post("/upload-invoice", upload.fields([{ name: "invoice", maxCount: 1 }, { name: "bank_details", maxCount: 1 }]), async (req, res) => {
+//   const t0 = Date.now();
+//   const debug = req.query.debug === "1";
 
-//             // 1) OCR/טקסט
-//             let raw = await extractText(inv);
-//             if (!raw) {
-//                 // כאן אפשר לחבר בעתיד Vision-async ל-PDF סרוק (GCS). כרגע נחזיר 422:
-//                 return res.status(422).json({ error: "scanned-pdf-not-supported-yet", hint: "Upload image or text-PDF" });
-//             }
-//             raw = normalizeRtl(raw);
+//   try {
+//     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+//     const inv = files?.invoice?.[0];
+//     const bank = files?.bank_details?.[0];
 
-//             // 2) Regex “קלים”
-//             const base = quickExtract(raw);
+//     const isMock =
+//       String(process.env.UPLOAD_MOCK || "").toLowerCase() === "1" ||
+//       String(req.query.mock || "") === "1" ||
+//       String(req.headers["x-mock-mode"] || "") === "1";
 
-//             // 3) LLM אם חסר משהו מרכזי
-//             const needs =
-//                 !base.supplier_email || !base.business_number || !base.invoice_type || !(base.amount && base.amount !== 0);
+//     const fixtureName =
+//       (req.query.fixture as string) ||
+//       (req.headers["x-mock-fixture"] as string) ||
+//       undefined;
 
-//             let merged: Partial<ParsedInvoiceData> = { ...base };
-//             if (needs) {
-//                 const llm = await llmFill(raw, base);
-//                 merged = { ...merged, ...Object.fromEntries(Object.entries(llm).filter(([, v]) => v !== "" && v != null)) };
-//             }
+//     let rawFull = "";
+//     let ocrMs = 0;
+//     let llmMs = 0;
+//     let llmUsed = false;
 
-//             // 4) אם הועלה קובץ בנק – סמני זאת
-//             if (bank && (merged.bank_details_file == null || merged.bank_details_file === "")) {
-//                 merged.bank_details_file = "uploaded-bank-file";
-//             }
-
-//             // 5) ולידציה סופית והחזרה (בדיוק המבנה שהקליינט שלך מצפה אליו)
-//             const data = ParsedSchema.parse(merged);
-//             const totalMs = Date.now() - t0;
-//             // לא מכניסים מטא לתגובה כי ה-UI שלך מצפה לאובייקט הישיר:
-//             return res.json(data);
-//         } catch (err: any) {
-//             console.error("upload-invoice error:", err);
-//             return res.status(500).json({ error: err?.message || "AI extraction failed" });
-//         }
+//     // --- OCR / text extraction timing ---
+//     const tOcr0 = Date.now();
+//     if (isMock) {
+//       rawFull = getMockText(fixtureName);
+//     } else {
+//       rawFull = await extractTextBestEffort(inv);
 //     }
-// );
+//     ocrMs = Date.now() - tOcr0;
+
+//     // --- LLM ---
+//     const tLlm0 = Date.now();
+//     const llmRaw = await llmToJson(rawFull);
+//     llmMs = Date.now() - tLlm0;
+//     llmUsed = true;
+
+//     const llm = Array.isArray(llmRaw) ? (llmRaw[0] ?? {}) : llmRaw;
+
+//     const data = {
+//       supplier_name: typeof llm?.supplier_name === "string" ? llm.supplier_name : "",
+//       business_number: typeof llm?.business_number === "string" ? llm.business_number : "",
+//       invoice_type: typeof llm?.invoice_type === "string" ? llm.invoice_type : "",
+//       invoice_description: typeof llm?.invoice_description === "string" ? llm.invoice_description : "",
+//       amount: typeof llm?.amount === "number" ? llm.amount : Number(llm?.amount) || 0,
+//       project: typeof llm?.project === "string" ? llm.project : "",
+//       bank_details_file: bank ? (llm?.bank_details_file || "uploaded-bank-file") : (llm?.bank_details_file ?? null),
+//       supplier_email: typeof llm?.supplier_email === "string" ? llm.supplier_email : "",
+//     };
+
+//     if (debug) {
+//       const preview = (rawFull || "").replace(/\s+/g, " ").trim();
+//       (data as any)._debug = {
+//         ms_total: Date.now() - t0,
+//         ocr_ms: ocrMs,
+//         llm_ms: llmMs,
+//         llm_used: llmUsed ,          // true = באמת קראנו ל-Gemini
+//         mode: isMock ? "MOCK" : "REAL",
+//         model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+//         raw_len: rawFull.length,
+//         raw_preview: preview.slice(0, 500) + (preview.length > 500 ? " ..." : "")
+//       };
+//     }
+
+//     return res.json(data);
+//   } catch (err: any) {
+//     return res.json({
+//       supplier_name: "",
+//       business_number: "",
+//       invoice_type: "",
+//       invoice_description: "",
+//       amount: 0,
+//       project: "",
+//       bank_details_file: null,
+//       supplier_email: "",
+//     });
+//   }
+// });
+
+// router.get("/__llm-ping", async (_req, res) => {
+//     try {
+//         const model = genAI.getGenerativeModel({
+//             model: GEMINI_MODEL,
+//             generationConfig: { temperature: 0, responseMimeType: "application/json", maxOutputTokens: 50 },
+//         });
+//         const prompt = `החזר JSON בלבד: {"ok": true, "ts": ${Date.now()}}`;
+//         const r = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+//         const text = r.response.text() || "{}";
+//         return res.json({ ok: true, parsed: JSON.parse(text) });
+//     } catch (e: any) {
+//         return res.status(500).json({ ok: false, error: e?.message || String(e) });
+//     }
+// });
 
 // export default router;
 
 
 
+//מימוש עם קריאת API לג'מיני
 
-import { Router, type Request, type Response } from "express";
+
+
+// src/routes/quick-invoice.ts
+// routes/documents.ts
+import { Router } from "express";
 import multer from "multer";
-import vision from "@google-cloud/vision";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import PDFParser from "pdf2json";
-import path from "node:path";
-import { getMockText } from "../db/mock-fixtures.js";
 
-
-
-const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 10);
 const router = Router();
 
-// ---- Multer (פשוט, לזיכרון) ----
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: MAX_FILE_MB * 1024 * 1024, files: 2 },
+    limits: { fileSize: 10 * 1024 * 1024, files: 2 }, // 10MB כמו בקליינט
+    fileFilter: (_req, file, cb) => {
+        const ok = /application\/pdf|image\/(png|jpe?g|webp|tiff|heic|heif)/i.test(file.mimetype);
+        if (!ok) return cb(new Error("Unsupported file type"));
+        cb(null, true);
+    },
 });
 
-const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS
-    ? path.isAbsolute(process.env.GOOGLE_APPLICATION_CREDENTIALS)
-        ? process.env.GOOGLE_APPLICATION_CREDENTIALS
-        : path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS)
-    : path.resolve(process.cwd(), "secrets", "sa.json");
-
-
-
-// ---- OCR/LLM ----
-const visionClient = new vision.ImageAnnotatorClient({ keyFilename: keyFile }); // דורש GOOGLE_APPLICATION_CREDENTIALS
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-// ---- עזרות ----
-function normalizeRtl(raw: string) {
-    return (raw || "")
-        .replace(/[\u200e\u200f]/g, "")
-        .replace(/[“”״]/g, '"')
-        .replace(/[’׳]/g, "'")
-        .replace(/\t/g, " ")
-        .replace(/[ \u00A0]+/g, " ")
-        .trim();
-}
-function extractFirstJsonObject(s: string): any | null {
-    if (!s) return null;
+const BASE_PROMPT = `
+תפקיד: לחלץ נתוני הוצאה (Expense) מתוך קבצים מצורפים:
+- PART 1 = INVOICE (חובה)
+- PART 2 = BANK_DETAILS (אופציונלי)
 
-    // מסיר גדרות קוד ``` ותג json
-    let cleaned = s
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
+כללי חילוץ לפרטי בנק:
+1) אם קיימים שני הקבצים (INVOICE + BANK_DETAILS) — את שדות הבנק יש לחלץ **אך ורק** מתוך BANK_DETAILS ולהתעלם מ-INVOICE לצורך שדות הבנק.
+2) אם קיים רק INVOICE — נסי לחלץ ממנו את שדות הבנק אם מופיעים.
+3) אם לא נמצאו פרטי בנק — החזירי בשדות הבנק מחרוזות ריקות "" (לא null).
+4) אין להמציא מידע. אם שדה לא ידוע (שאינו משדות הבנק) — החזירי null.
+5) יש לכבד עברית/RTL; מותר לבצע OCR/זיהוי טקסט חופשי.
 
-    // לפעמים המודל מחזיר פסאודו-מפתחות בגרשיים חכמים
-    cleaned = cleaned.replace(/[“”]/g, '"').replace(/[’]/g, "'");
+פורמט פלט: החזירי **JSON יחיד ונקי** (application/json) ללא Markdown וללא טקסט נוסף, עם המפתחות הבאים בדיוק (שמות ושדות קבועים):
 
-    // ניסיון ראשון: parse ישיר
-    try {
-        return JSON.parse(cleaned);
-    } catch { }
+{
+  "supplier_name": string | null,
+  "business_number": string | null,
+  "invoice_type": string | null,            // דוג': "חשבונית מס" | "חשבון עסקה" | "קבלה" | ...
+  "invoice_description": string | null,     // רק טקסט שקיים במסמך, 5–120 תווים
+  "amount": number | null,                  // סכום כולל לתשלום
+  "project": string | null,
+  "supplier_email": string | null,          // דוא"ל ספק אם קיים, אחרת null
 
-    // חיפוש האובייקט הראשון {...} בטקסט
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-        const mid = cleaned.slice(start, end + 1);
+  // --- פרטי בנק: תמיד להחזיר כמחרוזות (גם אם ריקות) ---
+  "bank_name": string,                      // קוד/שם בנק אם קיים, אחרת ""
+  "bank_branch": string,                    // קוד/מס' סניף אם קיים, אחרת ""
+  "bank_account": string,                   // מס' חשבון אם קיים, אחרת ""
+  "iban": string,                           // אם קיים, אחרת ""
+  "beneficiary": string,                    // שם המוטב/בעל החשבון אם קיים, אחרת ""
 
-        // תיקון קל ל-trailing commas: ,} או ,]
-        const midNoTrailingCommas = mid
-            .replace(/,\s*}/g, "}")
-            .replace(/,\s*]/g, "]");
+  // מקור פרטי הבנק:
+  // "uploaded-bank-file" אם נשלח BANK_DETAILS ונעשה בו שימוש,
+  // "inline-bank-details" אם נשלפו מה-INVOICE,
+  // אחרת null.
+  "bank_details_file": "uploaded-bank-file" | "inline-bank-details" | null,
 
-        try {
-            return JSON.parse(midNoTrailingCommas);
-        } catch { }
-    }
-
-    return null;
-}
-
-
-async function ocrFromImageBuffer(buf: Buffer) {
-    try {
-        const [result] = await visionClient.documentTextDetection({
-            image: { content: buf },
-            imageContext: { languageHints: ["he", "en"] },
-        });
-        return result.fullTextAnnotation?.text ?? "";
-    } catch {
-        return "";
-    }
+  // שדות משלימים (להשאיר null אם לא בטוח/לא נמצא):
+  "id": string | null,
+  "budget": string | null,
+  "date": string | null,                    // YYYY-MM-DD של תאריך הוצאה/הנפקה (לא due)
+  "categories": string[] | null,
+  "invoice_file": string | null,
+  "status": "draft" | "ready" | null,
+  "user_id": string | null
 }
 
-async function extractPdfText(buffer: Buffer): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const pdfParser = new PDFParser();
-        pdfParser.on("pdfParser_dataError", err => reject(err.parserError));
-        pdfParser.on("pdfParser_dataReady", pdfData => {
-            const text = pdfParser.getRawTextContent();
-            resolve(text);
-        });
-        pdfParser.parseBuffer(buffer);
-    });
-}
-
-async function extractTextBestEffort(file?: Express.Multer.File): Promise<string> {
-    if (!file) return "";
-    const mt = (file.mimetype || "").toLowerCase();
-
-    try {
-        if (mt.includes("pdf")) {
-            // ✅ שימוש ב-pdf2json
-            const text = (await extractPdfText(file.buffer)).trim();
-            return text; // גם אם ריק – לא מפילים
-        }
-
-        if (/^image\/(png|jpe?g|webp|tiff|heic|heif)$/.test(mt)) {
-            const text = await ocrFromImageBuffer(file.buffer);
-            return (text || "").trim();
-        }
-    } catch {
-        // לא מפילים כלום
-    }
-    return "";
-}
+הנחיות נוספות:
+- לבחור ערך יחיד לכל שדה. אם יש כמה מועמדים — להעדיף את הכי חד-משמעי.
+- "status" = "ready" רק אם supplier_name + date + amount זוהו תקינים; אחרת null.
+- פורמט מספרים: amount כמספר (לא כמחרוזת).
+- אין טקסט חופשי מחוץ ל-JSON. להחזיר אובייקט JSON אחד בלבד.
+`;
 
 
-// function quickExtract(raw: string) {
-//   const t = normalizeRtl(raw);
-//   const out: any = {};
-
-//   const email = t.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
-//   if (email) out.supplier_email = email;
-
-//   const biz =
-//     t.match(/\b(\d{8,9})\b(?=.*(?:ח\.פ|ח״פ|עוסק|VAT|Tax\s?ID|Company\s?ID))/i)?.[1] ||
-//     t.match(/\b(?:VAT|Tax\s?ID|ח\.פ)\D{0,5}(\d{8,9})\b/i)?.[1];
-//   if (biz) out.business_number = biz;
-
-//   const invNum =
-//     t.match(/(?:Invoice|חשבונית)[^\d]{0,12}(\d{3,12})/i)?.[1] ||
-//     t.match(/\bINV[-\s]?(\d{3,12})\b/i)?.[1];
-//   if (invNum) out.invoice_description = `Invoice #${invNum}`;
-
-//   const invType =
-//     (/(חשבונית מס|Tax Invoice)/i.test(t) && "חשבונית מס") ||
-//     (/(חשבונית עסקה|Invoice)/i.test(t) && "חשבונית עסקה") ||
-//     "";
-//   if (invType) out.invoice_type = invType;
-
-//   const amt = t.match(/(?:Total|סה"?כ|סך הכל)[^\d\-]{0,12}(-?\d{1,3}(?:[,\s]\d{3})*(?:\.\d+)?)/i)?.[1];
-//   if (amt) {
-//     const n = Number(amt.replace(/[,\s]/g, ""));
-//     if (!Number.isNaN(n)) out.amount = n;
-//   }
-
-//   const supplier =
-//     t.match(/(?:Supplier|ספק)\s*[:\-]\s*(.+)/i)?.[1]?.split("\n")[0] ||
-//     t.match(/(?:Business Name|שם\s*עסק)\s*[:\-]\s*(.+)/i)?.[1]?.split("\n")[0];
-//   if (supplier) out.supplier_name = supplier.trim();
-
-//   return out;
-// }
-async function llmToJson(rawFull: string) {
-    const rawOriginal = rawFull || "";
-    const rawNormalized = normalizeRtl(rawOriginal);
-
-    const model = genAI.getGenerativeModel({
-        model: GEMINI_MODEL,
-        generationConfig: {
-            temperature: 0,
-            responseMimeType: "application/json",
-            maxOutputTokens: 400,
-        },
-    });
-
-    const prompt = [
- "החזר אובייקט JSON יחיד (לא מערך), בלי טקסט נוסף ובלי ```:",
-        `{
-  "supplier_name": string,
-  "business_number": string,
-  "invoice_type": string,
-  "invoice_description": string,
-  "amount": number,
-  "project": string,
-  "bank_details_file": string | null,
-  "supplier_email": string
-}`,
-        'אל תנחש; אם אין ערך החזר "" או null. ודא שסכום הוא number.',
-        "טקסט מקורי מלא (he+en, ייתכן ג׳יבריש):",
-        "```",
-        rawOriginal,
-        "```",
-        "גרסה מנורמלת (סיוע בלבד):",
-        "```",
-        rawNormalized,
-        "```",
-    ].join("\n\n");
-
-    try {
-        console.log("[llmToJson] sending to model:", GEMINI_MODEL, "rawLen:", rawOriginal.length);
-        const resp = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-        });
-
-        const text = resp.response.text() || "";
-        console.log("[llmToJson] got text len:", text.length, "preview:", text.slice(0, 120).replace(/\s+/g, " "));
-
-    const json = extractFirstJsonObject(text);
-    if (json != null) {
-      const obj = Array.isArray(json) ? (json[0] ?? {}) : json;
-      return obj && typeof obj === "object" ? obj : {};
-    }
-
-        // ניסיון אחרון — אולי זה כבר JSON נקי
-        try {
-            const parsed = JSON.parse(text);
-      const obj = Array.isArray(parsed) ? (parsed[0] ?? {}) : parsed;
-      return obj && typeof obj === "object" ? obj : {};
-        } catch {
-            console.warn("[llmToJson] parse failed, returning {}");
-            return {};
-        }
-    } catch (e: any) {
-        console.error("[llmToJson] ERROR:", e?.message || e);
-        return {};
-    }
-}
-
-
-// function coerceParsed(p: any) {
-//   // מבטיחים שהמבנה קבוע ותמיד חוקי לקליינט
-//   return {
-//     supplier_name: typeof p?.supplier_name === "string" ? p.supplier_name : "",
-//     business_number: typeof p?.business_number === "string" ? p.business_number : "",
-//     invoice_type: typeof p?.invoice_type === "string" ? p.invoice_type : "",
-//     invoice_description: typeof p?.invoice_description === "string" ? p.invoice_description : "",
-//     amount: typeof p?.amount === "number" ? p.amount : Number(p?.amount) || 0,
-//     project: typeof p?.project === "string" ? p.project : "",
-//     bank_details_file:
-//       p?.bank_details_file == null || p?.bank_details_file === "" ? null : String(p.bank_details_file),
-//     supplier_email: typeof p?.supplier_email === "string" ? p.supplier_email : "",
-//   };
-// }
-
-// ---- Route: תמיד 200 עם אובייקט ----
+// POST /documents/upload-invoice
 router.post(
     "/upload-invoice",
-    upload.fields([{ name: "invoice", maxCount: 1 }, { name: "bank_details", maxCount: 1 }]),
-    async (req: Request, res: Response) => {
+    upload.fields([
+        { name: "invoice", maxCount: 1 },
+        { name: "bank_details", maxCount: 1 },
+    ]),
+    async (req, res) => {
         const t0 = Date.now();
-        const debug = req.query.debug === "1";
+
         try {
+            // 1) קבצים מהטופס
             const files = req.files as Record<string, Express.Multer.File[]> | undefined;
-            const inv = files?.invoice?.[0];
+            const invoice = files?.invoice?.[0];
             const bank = files?.bank_details?.[0];
+            if (!invoice) return res.status(400).json({ error: "Missing file 'invoice'" });
 
-            // 1) חילוץ טקסט מלא (בלי סינון/חוקים)
-            //   const rawFull = await extractTextBestEffort(inv);//להחזיר אח"כ
-            const isMock =
-                String(process.env.UPLOAD_MOCK || "").toLowerCase() === "1" ||
-                String(req.query.mock || "") === "1" ||
-                String(req.headers["x-mock-mode"] || "") === "1";
+            // 2) מודל Gemini
+            const model = genAI.getGenerativeModel({
+                model: GEMINI_MODEL, // למשל: "gemini-2.0-flash"
+                generationConfig: {
+                    temperature: 0,
+                    maxOutputTokens: 900,
+                    responseMimeType: "application/json",
+                },
+            });
 
-            const fixtureName =
-                (req.query.fixture as string) ||
-                (req.headers["x-mock-fixture"] as string) ||
-                undefined;
+            // 3) פרומפט בסיס קצר (אפשר להחליף לשלך)
+            const parts: any[] = [
+                {
 
-            let rawFull: string;
-
-            if (isMock) {
-                rawFull = getMockText(fixtureName);
-                console.log(
-                    "[upload-invoice/mock] using fixture:",
-                    fixtureName || "(default)",
-                    "len:",
-                    rawFull.length
-                );
-            } else {
-                rawFull = await extractTextBestEffort(inv);
+                    text:
+                        BASE_PROMPT +
+                        "\n\nהקבצים מגיעים כחלקים ברצף: PART 1 = INVOICE, PART 2 = BANK_DETAILS (אם קיים).",
+                },
+                { text: "PART 1: INVOICE" },
+                {
+                    inlineData: {
+                        data: invoice.buffer.toString("base64"),
+                        mimeType: invoice.mimetype || "application/octet-stream",
+                    },
+                },
+            ];
+            if (bank) {
+                parts.push(
+                    { text: "PART 2: BANK_DETAILS" },
+                    {
+                        inlineData: {
+                            data: bank.buffer.toString("base64"),
+                            mimeType: bank.mimetype || "application/octet-stream",
+                        },
+                    });
             }
 
-            console.log(
-                "[upload-invoice] mode:",
-                isMock ? "MOCK" : "REAL",
-                "mime/size:",
-                inv?.mimetype,
-                inv?.size,
-                "rawLen:",
-                rawFull?.length || 0
-            );
+            // 4) קריאה למודל
+            const resp = await model.generateContent({ contents: [{ role: "user", parts }] });
+            const text = resp.response.text() || "{}";
+
+            // 5) Parse בטוח + Unwrap (מערך/מפתח "0")
+            let parsed: any;
+            try { parsed = JSON.parse(text); } catch { parsed = {}; }
+
+            function unwrapLLM(p: any) {
+                if (!p) return {};
+                if (Array.isArray(p)) return p[0] ?? {};
+                const numKey = Object.keys(p).find(k => /^\d+$/.test(k));
+                return numKey ? p[numKey] : p;
+            }
+            const obj = unwrapLLM(parsed);
+
+            // ----------helpers for tolerant mapping----------
+            const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+            function hasInlineBank(raw: any): boolean {
+                // 1) יש שדות בנק מפורשים שחזרו מהמודל?
+                const anyBankField = pickFirst(raw, [
+                    "bank_name", "bank", "bank_branch", "branch",
+                    "bank_account", "account", "account_number",
+                    "iban", "IBAN"
+                ]);
+                if (anyBankField) return true;
+
+                // 2) חיפוש טקסט חופשי בכל ה-JSON (evidence/תמלול)
+                try {
+                    const text = JSON.stringify(raw);
+                    // מילות מפתח נפוצות בעברית/אנגלית
+                    if (/(פרטי\s*בנק|בנק|סניף|מספר\s*חשבון|IBAN|Bank|Branch|Account)/i.test(text)) return true;
+
+                    // דפוסי מספרים רלוונטיים:
+                    // IBAN ישראלי (IL + 2 ספרות ביקורת + 19 ספרות)
+                    if (/IL\d{2}\d{19}/i.test(text)) return true;
+
+                    // פורמט בנק-סניף-חשבון בסגנון "52-177-200131" (דוגמה שהופיעה אצלך)
+                    if (/\b\d{1,2}\s*-\s*\d{1,3}\s*-\s*\d{4,12}\b/.test(text)) return true;
+                } catch { }
+                return false;
+            }
+            function cleanFlatText(raw: any): string {
+                try {
+                    return JSON.stringify(raw)
+                        .replace(/\\n/g, " ")
+                        .replace(/[\u200e\u200f]/g, "") // סימוני RTL
+                        .replace(/\s+/g, " ")
+                        .trim();
+                } catch { return ""; }
+            }
+
+            // ניסיון מושכל: גם עברית רגילה, גם הפוכה
+            function extractBankDetails(raw: any) {
+                // 1) אם המודל כבר החזיר מפתחות מפורשים
+                const direct = {
+                    bank_name: getStr(raw, ["bank_name", "bank"], ""),
+                    bank_branch: getStr(raw, ["bank_branch", "branch"], ""),
+                    bank_account: getStr(raw, ["bank_account", "account", "account_number"], ""),
+                    iban: getStr(raw, ["iban", "IBAN"], ""),
+                    beneficiary: getStr(raw, ["beneficiary", "account_holder", "holder", "מוטב"], ""),
+                };
+                const cleanedDirect = Object.fromEntries(
+                    Object.entries(direct).filter(([_, v]) => String(v || "").trim() !== "")
+                );
+                if (Object.keys(cleanedDirect).length) return cleanedDirect;
+
+                // 2) חיפוש גס בכל גוף ה-JSON (כולל evidences)
+                let text = cleanFlatText(raw);   // <<< במקום JSON.stringify(raw)
+                if (!text) return {};
+
+                const out: any = {};
+
+                // IBAN ישראלי
+                const iban = text.match(/\bIL\d{2}\d{19}\b/i);
+                if (iban) out.iban = iban[0];
+
+                // עברית: "בנק 52, סניף 177, מס' חשבון 200131" (ללא תלות ברווחים/פסיקים)
+                let m = text.match(/בנק\D{0,6}(\d{1,3}).{0,30}סניף\D{0,6}(\d{1,4}).{0,40}(?:מס'?|מספר)?\s*חשבון\D{0,6}([0-9-]{5,})/i);
+                if (!m) {
+                    // הפוך (RTL ב-PDF): "מס' חשבון 200131 ... סניף 177 ... בנק 52"
+                    m = text.match(/חשבון\D{0,6}([0-9-]{5,}).{0,40}סניף\D{0,6}(\d{1,4}).{0,30}בנק\D{0,6}(\d{1,3})/i);
+                    if (m) m = ["", m[3], m[2], m[1]] as any; // סדר: בנק, סניף, חשבון
+                }
+                if (!m) {
+                    // אנגלית: "Bank 52 ... Branch 177 ... Account 200131"
+                    m = text.match(/Bank\D{0,6}(\d{1,3}).{0,30}Branch\D{0,6}(\d{1,4}).{0,40}Account\D{0,6}([0-9-]{5,})/i);
+                }
+                if (m) {
+                    const bankCode = m[1], branch = m[2], account = (m[3] || "").replace(/\D/g, "");
+                    // ולידציה קלה כדי לזרוק התאמות שגויות (כמו 2025/90080 שתפסת בטעות)
+                    const okBank = /^\d{1,3}$/.test(bankCode ?? "");
+                    const okBranch = /^\d{1,4}$/.test(branch ?? "");
+                    const okAcc = /^\d{5,12}$/.test(account ?? "");
+                    if (okBank) out.bank_name = bankCode;
+                    if (okBranch) out.bank_branch = branch;
+                    if (okAcc) out.bank_account = account;
+                }
+
+                // מוטב / בעל חשבון
+                const beneficiary = text.match(/(?:מוטב|Beneficiary|Account\s*Holder)\s*[:\-]?\s*([^\s,;|]{2,}.*?)(?=\s{2,}|[.,;]|$)/i);
+                if (beneficiary && beneficiary[1]) out.beneficiary = beneficiary[1].trim();
+                if (!out.bank_account && !out.iban) {
+                    const g = guessTriple(text);
+                    if (g) {
+                        out.bank_name = out.bank_name || String(g.bank);
+                        out.bank_branch = out.bank_branch || String(g.branch);
+                        out.bank_account = out.bank_account || String(g.account);
+                    }
+                }
+                return out;
+            }
 
 
-            console.log("[upload-invoice] mime/size:", inv?.mimetype, inv?.size, "rawLen:", rawFull.length);
+            // פול־בק לשלישיית מספרים (ללא מילות מפתח)
+            function guessTriple(text: string): { bank: number; branch: number; account: number } | null {
+                // לחפש רצף של 3 מספרים בטווח 80 תווים
+                const nums: Array<{ n: number, i: number }> = [];
+                for (const m of text.matchAll(/\d{1,12}/g)) {
+                    nums.push({ n: Number(m[0]), i: m.index ?? 0 });
+                }
+                for (let i = 0; i + 2 < nums.length; i++) {
+                    const a = nums[i], b = nums[i + 1], c = nums[i + 2];
+                    if (!a || !b || !c) continue;
+                    if ((c.i - a.i) > 80) continue; // רחוק מדי
+                    const arr = [a.n, b.n, c.n].sort((x, y) => x - y);
+                    const bank = arr[0], branch = arr[1], account = arr[2];
+                    if (
+                        account !== undefined &&
+                        bank !== undefined &&
+                        branch !== undefined &&
+                        String(account).length >= 5 &&
+                        String(bank).length <= 3 &&
+                        String(branch).length <= 4
+                    ) {
+                        return { bank, branch, account };
+                    }
+                }
+                return null;
+            }
 
-            // 2) JSON ע״י LLM בלבד
-            const llmRaw = await llmToJson(rawFull);
-            const llm = Array.isArray(llmRaw) ? (llmRaw[0] ?? {}) : llmRaw; // ← פריסה אם חזר מערך
 
-            
-            // 3) בנייה זהירה עם ברירות מחדל
-            const data = {
-                supplier_name: typeof llm?.supplier_name === "string" ? llm.supplier_name : "",
-                business_number: typeof llm?.business_number === "string" ? llm.business_number : "",
-                invoice_type: typeof llm?.invoice_type === "string" ? llm.invoice_type : "",
-                invoice_description: typeof llm?.invoice_description === "string" ? llm.invoice_description : "",
-                amount: typeof llm?.amount === "number" ? llm.amount : Number(llm?.amount) || 0,
-                project: typeof llm?.project === "string" ? llm.project : "",
-                bank_details_file: bank ? (llm?.bank_details_file || "uploaded-bank-file") : (llm?.bank_details_file ?? null),
-                supplier_email: typeof llm?.supplier_email === "string" ? llm.supplier_email : "",
-            };
+            // get nested value by path, e.g. "evidence.supplier_name_text"
+            function getPath(o: any, path: string): any {
+                return path.split('.').reduce((acc, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), o);
+            }
 
-            // 4) דיבוג אופציונלי ללקוח
-            if (debug) {
-                const preview = (rawFull || "").replace(/\s+/g, " ").trim();
-                (data as any)._debug = {
-                    ms: Date.now() - t0,
-                    raw_len: rawFull.length,
-                    raw_preview: preview.slice(0, 500) + (preview.length > 500 ? " ..." : ""),
+            function pickFirst(o: any, paths: string[]) {
+                for (const p of paths) {
+                    const v = p.includes('.') ? getPath(o, p) : o?.[p];
+                    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+                }
+                return undefined;
+            }
+
+            function getStr(o: any, keys: string[], fallback = ""): string {
+                const v = pickFirst(o, keys);
+                return typeof v === 'string' ? v.trim() : (v != null ? String(v).trim() : fallback);
+            }
+
+            function getNum(o: any, keys: string[], fallback = 0): number {
+                const v = pickFirst(o, keys);
+                if (typeof v === 'number' && isFinite(v)) return v;
+                if (typeof v === 'string') {
+                    const n = Number(v.replace(/[₪,\s]/g, '').replace(/(\d+),(\d{2})$/, '$1.$2'));
+                    if (isFinite(n)) return n;
+                }
+                return fallback;
+            }
+
+            function normalizeInvoiceType(s?: string): string {
+                if (!s) return "";
+                const t = s.trim();
+                if (/חשבונית\s*מס/i.test(t)) return "חשבונית מס";
+                if (/חשבונ(ית)?\s*עסקה/i.test(t) || /חשבונית\s*עסקה/i.test(t) || /עסקה/i.test(t)) return "חשבון עסקה";
+                if (/קבלה/i.test(t)) return "קבלה";
+                return t;
+            }
+
+            function coerceEmail(o: any, keys: string[]): string {
+                // 1) נסה מהמפתחות הידועים
+                const direct = getStr(o, keys, "");
+                if (direct && EMAIL_RE.test(direct)) return direct;
+
+                // 2) נסה evidence נפוץ
+                const ev = getStr(o, ["evidence.supplier_email_text", "supplier_email_evidence", "email_evidence"], "");
+                if (ev && EMAIL_RE.test(ev)) return ev;
+
+                // 3) נסה לאתר אימייל בכל האובייקט כסריקה גסה
+                try {
+                    const flat = JSON.stringify(o);
+                    const m = flat.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+                    if (m) return m[0];
+                } catch { }
+                return "";
+            }
+
+            function mapToParsedInvoice(raw: any, bankUploaded: boolean) {
+                const supplier_name = getStr(raw, [
+                    "supplier_name", "supplier", "vendor_name", "supplierName", "name"
+                ], "");
+
+                const business_number = getStr(raw, [
+                    "business_number", "businessNumber", "vat_id", "VAT", "tax_id", "company_id", "חפ", "עוסק", "מספר עוסק"
+                ], "");
+
+                const invoice_type = normalizeInvoiceType(getStr(raw, [
+                    "invoice_type", "doc_type", "type"
+                ], ""));
+
+                const invoice_description = getStr(raw, [
+                    "invoice_description", "service_description", "description", "title", "serviceDescription"
+                ], "");
+
+                const amount = getNum(raw, [
+                    "amount", "total_amount", "total", "amount_due", "grand_total", "סהכ"
+                ], 0);
+
+                const project = getStr(raw, [
+                    "project", "budget_project", "job_name", "project_name"
+                ], "");
+
+                const supplier_email = coerceEmail(raw, [
+                    "supplier_email", "email", "contact_email"
+                ]);
+
+                // --------- add below your helpers (after hasInlineBank / pickFirst / getStr ...) ---------
+
+
+                const bank_details_file =
+                    bankUploaded
+                        ? "uploaded-bank-file"
+                        : (getStr(raw, ["bank_details_file", "bank_file", "bank_attachment"], "") ||
+                            (hasInlineBank(raw) ? "inline-bank-details" : undefined));
+
+                return {
+                    supplier_name,
+                    business_number,
+                    invoice_type,
+                    invoice_description,
+                    amount,
+                    project,
+                    bank_details_file,
+                    supplier_email,
                 };
             }
+            // ----------end helpers----------
 
-            return res.json(data);
-        } catch (err: any) {
-            console.error("[upload-invoice] error:", err?.message || err);
+            // 6-7) מיפוי סופי (תמיד נחזיר חלקי אם נמצא משהו)
+            const data = mapToParsedInvoice(obj, Boolean(bank));
+            const rawBank = extractBankDetails(obj);
+            const bankNormalized = {
+                bank_name: (rawBank.bank_name ?? "").trim(),
+                bank_branch: (rawBank.bank_branch ?? "").trim(),
+                bank_account: (rawBank.bank_account ?? "").trim(),
+                iban: (rawBank.iban ?? "").trim(),
+                beneficiary: (rawBank.beneficiary ?? "").trim(),
+            };
+            let bank_source: "uploaded" | "inline" | "" = "";
+            if (bank) bank_source = "uploaded";
+            else if (Object.values(bankNormalized).some(v => v)) bank_source = "inline";
+
+            if (!bank && bank_source === "inline" && !data.bank_details_file) {
+                data.bank_details_file = "inline-bank-details";
+            }
+            // 8) Debug נוח בזמן פיתוח
+            const ms = Date.now() - t0;
+            const payload = {
+                supplier_name: data.supplier_name || "",
+                business_number: data.business_number || "",
+                invoice_type: data.invoice_type || "",
+                invoice_description: data.invoice_description || "",
+                amount: data.amount || 0,
+                project: data.project || "",
+                supplier_email: data.supplier_email || "",
+                bank_details_file: data.bank_details_file || null,
+
+                bank_name: bankNormalized.bank_name || "",
+                bank_branch: bankNormalized.bank_branch || "",
+                bank_account: bankNormalized.bank_account || "",
+                beneficiary: bankNormalized.beneficiary || "",
+                iban: bankNormalized.iban || "",
+                bank_source, // "uploaded" | "inline" | ""
+
+                _debug: {
+                    ms,
+                    model: GEMINI_MODEL,
+                    invoice_mime: invoice.mimetype,
+                    invoice_size: invoice.size,
+                    bank_mime: bank?.mimetype || null,
+                    bank_size: bank?.size || null,
+                },
+            };
+
+            return res.json(payload);
+        } catch (e: any) {
             return res.json({
                 supplier_name: "",
                 business_number: "",
@@ -562,25 +732,11 @@ router.post(
                 project: "",
                 bank_details_file: null,
                 supplier_email: "",
+                _error: e?.message || String(e)
             });
         }
+
     }
 );
-
-
-router.get("/__llm-ping", async (_req, res) => {
-    try {
-        const model = genAI.getGenerativeModel({
-            model: GEMINI_MODEL,
-            generationConfig: { temperature: 0, responseMimeType: "application/json", maxOutputTokens: 50 },
-        });
-        const prompt = `החזר JSON בלבד: {"ok": true, "ts": ${Date.now()}}`;
-        const r = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
-        const text = r.response.text() || "{}";
-        return res.json({ ok: true, parsed: JSON.parse(text) });
-    } catch (e: any) {
-        return res.status(500).json({ ok: false, error: e?.message || String(e) });
-    }
-});
 
 export default router;

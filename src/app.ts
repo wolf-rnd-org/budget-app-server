@@ -18,7 +18,7 @@ app.use("/budgets", budgetRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/programs", programsRoutes);
 app.use("/auth", authRoutes);
-app.use("/budgets/documents", invoiceRoutes);
+app.use("/documents", invoiceRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

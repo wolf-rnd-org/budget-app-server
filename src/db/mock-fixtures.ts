@@ -31,8 +31,8 @@ Bank details attached: YES!! ראה קובץ מצורף בשם bank.pdf
   `,
 };
 export function getMockText(name?: string): string {
-  if (name && MOCKS[name]) return MOCKS[name]!;
-  return MOCKS.allCases ?? ""; // ברירת מחדל
+  if (name && MOCKS[name]) return MOCKS[name];
+  return MOCKS.allCases || ""; 
 }
 
 export function listMockNames(): string[] {
