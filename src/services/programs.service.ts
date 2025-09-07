@@ -1,4 +1,4 @@
-import { readJson } from "../utils/fileDB.js";
+// import { readJson } from "../utils/fileDB.js";
 import { z } from "zod";
 import { base } from "../utils/airtableConfig.js";
 
@@ -62,22 +62,34 @@ const ProgramSchema = z.object({
 });
 export type Program = z.infer<typeof ProgramSchema>;
 
-async function loadAll(): Promise<Program[]> {
-  const raw = await readJson<unknown>("getprogrambyuserid.json");
-  if (!Array.isArray(raw)) throw new Error("getprogrambyuserid.json must be an array");
-  return raw.map((x) => ProgramSchema.parse(x));
-}
+// async function loadAll(): Promise<Program[]> {
+//   const raw = await readJson<unknown>("getprogrambyuserid.json");
+//   if (!Array.isArray(raw)) throw new Error("getprogrambyuserid.json must be an array");
+//   return raw.map((x) => ProgramSchema.parse(x));
+// }
 
 export async function listAll(): Promise<Program[]> {
-  return loadAll();
+  const recs = await base("programs")
+    .select({ fields: ["program_id", "name"] })
+    .all();
+
+  return recs.map(r =>
+    ProgramSchema.parse({
+      id: String(r.get("program_id") ?? r.id), // מה שיופיע ב-value של ה-<option>
+      name: String(r.get("name") ?? ""),
+      program_id: String(r.get("program_id") ?? ""),
+      recordId: r.id,
+    })
+  );
 }
 
+
 export async function getById(id: string): Promise<Program | null> {
-  const all = await loadAll();
+  const all = await listAll();
   return all.find(p => p.id === id) ?? null;
 }
 
 // במוק: מחזיר את כולן בלי קשר ל-userId (כדי להתאים לקליינט)
 export async function listByUserId(_userId: string | number): Promise<Program[]> {
-  return loadAll();
+  return listAll();
 }

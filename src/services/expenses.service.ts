@@ -43,9 +43,9 @@ export async function list(params: {
   // סינון לפי programId (במוק לפי substring בשם ה־project)
   const filtered = programId
     ? byUser.filter(e =>
-        typeof e.project === "string" &&
-        (e.project.includes(programId) || e.project.includes("24640") || e.project.includes("24864"))
-      )
+      typeof e.project === "string" &&
+      (e.project.includes(programId) || e.project.includes("24640") || e.project.includes("24864"))
+    )
     : byUser;
 
   // אם חשוב לך לראות את "כל הספקים" במוק – בטלי פאג’ינציה:
@@ -60,12 +60,12 @@ export async function list(params: {
   return { data, hasMore, totalCount };
 }
 
-                        
+
 type AirtableRow = Record<string, any>;
 
 
-  
-export async function getExpenses (
+
+export async function getExpenses(
   programId: string,
   page: number = 1,
   pageSize: number = 50
@@ -111,7 +111,7 @@ export async function getExpenses (
   await base("expenses")
     .select({
       filterByFormula: filter,
-     // fields: fieldsToReturn,
+      // fields: fieldsToReturn,
       pageSize: 100, // גודל עמוד פנימי מול Airtable; לא קשור ל-pageSize של הלקוח
     })
     .eachPage((records, fetchNextPage) => {
@@ -128,4 +128,95 @@ export async function getExpenses (
   const hasMore = totalCount > endExclusive;
 
   return { data, hasMore, totalCount };
-}  
+}
+
+// Add the missing createExpense function
+type CreateExpenseInput = {
+  user_id: string;
+  program_id: string;
+  program_rec_id: string;
+  date: string;
+  amount: number;
+  supplier_name: string;
+  business_number: string;
+  invoice_type: string;
+  invoice_description: string;
+  supplier_email: string;
+  status: "new" | "sent_for_payment" | "paid" | "receipt_uploaded" | "closed";
+  categories: string[];
+  bank_name?: string;
+  bank_branch?: string;
+  bank_account?: string;
+  beneficiary?: string;
+  bank_details_file?: any;
+  invoice_file?: any;
+  project?: string;
+};
+
+function toAttachmentArray(v: any): Array<{ url: string; filename?: string }> {
+  if (!v) return [];
+  if (typeof v === "string") return v ? [{ url: v }] : [];
+  if (Array.isArray(v)) return v.map(x => (typeof x === "string" ? { url: x } : x)).filter(a => a?.url);
+  if (typeof v === "object" && v.url) return [v];
+  return [];
+}
+const ALLOWED_STATUS = new Set([
+  "new",
+  "sent_for_payment",
+  "paid",
+  "receipt_uploaded",
+  "closed",
+]);
+function normalizeStatus(s?: string) {
+  const v = String(s || "").trim().toLowerCase();
+  return ALLOWED_STATUS.has(v) ? v : "new";
+}
+
+export async function createExpense(input: CreateExpenseInput) {
+  const fields: Record<string, any> = {
+    program_id: [input.program_rec_id],
+    date: input.date,
+    amount: input.amount,
+    supplier_name: input.supplier_name,
+    business_number: input.business_number,
+    invoice_type: input.invoice_type,
+    invoice_description: input.invoice_description,
+    supplier_email: input.supplier_email,
+    status: normalizeStatus(input.status), // ← ישלח תמיד ערך חוקי (ברירת מחדל: new)
+    user_id: String(input.user_id ?? ""),
+    categories: input.categories?.length ? input.categories : undefined,
+    bank_name: input.bank_name,
+    bank_branch: input.bank_branch,
+    bank_account: input.bank_account,
+    beneficiary: input.beneficiary,
+    project: input.project,
+  };
+  // המרה של שמות קטגוריות ל־recIds (אם השדה הוא Link לטבלת categories)
+  const { resolveCategoryLinksByNames } = await import("./categories.service.js");
+  if (Array.isArray(input.categories) && input.categories.length) {
+    const categoryLinks = await resolveCategoryLinksByNames(input.program_rec_id, input.categories);
+    if (categoryLinks.length) {
+      fields.categories = categoryLinks;
+    } else {
+      delete fields.categories; // אל תשלחי אם אין התאמה
+    }
+  }
+
+  
+  const bankAtt = toAttachmentArray(input.bank_details_file);
+  if (bankAtt.length) fields.bank_details_file = bankAtt;
+
+  const invAtt = toAttachmentArray(input.invoice_file);
+  if (invAtt.length) fields.invoice_file = invAtt;
+
+  // Clean undefined/empty values
+  for (const k of Object.keys(fields)) {
+    const v = fields[k];
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0) || v === "") {
+      delete fields[k];
+    }
+  }
+
+  const rec = await base("expenses").create(fields);
+  return { id: rec.id, fields: rec.fields };
+}
