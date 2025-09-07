@@ -28,6 +28,7 @@ r.get("/summary", async (req, res, next) => {
 r.get("/:param", async (req, res, next) => {
   try {
     const param = String(req.params.param);
+console.log(`programs.routes: param=${param}` );
 
     // 1) נסה כ-userId (במוק יכול פשוט להחזיר את כולן)
     const byUser = await svc.listByUserId(param);
