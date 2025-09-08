@@ -358,23 +358,24 @@ export async function createExpense(input: CreateExpenseInput) {
     supplier_email: input.supplier_email,
     status: normalizeStatus(input.status), // ← ישלח תמיד ערך חוקי (ברירת מחדל: new)
     user_id: String(input.user_id ?? ""),
-    categories: input.categories?.length ? input.categories : undefined,
+    categories: input.categories,
     bank_name: input.bank_name,
     bank_branch: input.bank_branch,
     bank_account: input.bank_account,
     beneficiary: input.beneficiary,
     project: input.project,
   };
-  // המרה של שמות קטגוריות ל־recIds (אם השדה הוא Link לטבלת categories)
-  const { resolveCategoryLinksByNames } = await import("./categories.service.js");
-  if (Array.isArray(input.categories) && input.categories.length) {
-    const categoryLinks = await resolveCategoryLinksByNames(input.program_rec_id, input.categories);
-    if (categoryLinks.length) {
-      fields.categories = categoryLinks;
-    } else {
-      delete fields.categories; // אל תשלחי אם אין התאמה
-    }
-  }
+  
+  // // המרה של שמות קטגוריות ל־recIds (אם השדה הוא Link לטבלת categories)
+  // const { resolveCategoryLinksByNames } = await import("./categories.service.js");
+  // if (Array.isArray(input.categories) && input.categories.length) {
+  //   const categoryLinks = await resolveCategoryLinksByNames(input.program_rec_id, input.categories);
+  //   if (categoryLinks.length) {
+  //     fields.categories = categoryLinks;
+  //   } else {
+  //     delete fields.categories; // אל תשלחי אם אין התאמה
+  //   }
+  // }
 
   
   const bankAtt = toAttachmentArray(input.bank_details_file);
@@ -390,6 +391,7 @@ export async function createExpense(input: CreateExpenseInput) {
       delete fields[k];
     }
   }
+console.log("Creating expense with fields:", fields);
 
   const rec = await base("expenses").create(fields);
   return { id: rec.id, fields: rec.fields };

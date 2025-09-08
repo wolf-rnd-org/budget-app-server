@@ -7,6 +7,7 @@ import programsRoutes from "./routes/programs.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
 import budgetsRoutes from "./routes/budgets.routes.js";
+import categoriesRoutes from "./routes/categories.routes.js";
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/budgets", budgetRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/programs", programsRoutes);
+app.use("/categories", categoriesRoutes);
 app.use("/auth", authRoutes);
 app.use("/documents", invoiceRoutes);
 app.use("/budgets/expenses", expensesRoutes); 
