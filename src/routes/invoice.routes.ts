@@ -303,6 +303,9 @@
 import { Router } from "express";
 import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import path from "path";
+import crypto from "crypto";
+import fs from "fs/promises";
 
 const router = Router();
 
@@ -315,6 +318,19 @@ const upload = multer({
         cb(null, true);
     },
 });
+async function saveToUploadsAndGetUrl(file: Express.Multer.File): Promise<string> {
+    const ext = (() => {
+        const orig = file.originalname || "";
+        const dot = orig.lastIndexOf(".");
+        return dot >= 0 ? orig.slice(dot) : "";
+    })();
+    const fname = `${Date.now()}-${crypto.randomUUID()}${ext || ""}`;
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.writeFile(path.join(uploadsDir, fname), file.buffer);
+    const base = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "") || "";
+    return `${base}/uploads/${fname}`;
+}
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -488,6 +504,7 @@ router.post(
                     bank_account: getStr(raw, ["bank_account", "account", "account_number"], ""),
                     iban: getStr(raw, ["iban", "IBAN"], ""),
                     beneficiary: getStr(raw, ["beneficiary", "account_holder", "holder", "מוטב"], ""),
+
                 };
                 const cleanedDirect = Object.fromEntries(
                     Object.entries(direct).filter(([_, v]) => String(v || "").trim() !== "")
@@ -653,6 +670,8 @@ router.post(
                     "supplier_email", "email", "contact_email"
                 ]);
 
+
+
                 // --------- add below your helpers (after hasInlineBank / pickFirst / getStr ...) ---------
 
 
@@ -694,6 +713,10 @@ router.post(
             }
             // 8) Debug נוח בזמן פיתוח
             const ms = Date.now() - t0;
+            const invoiceUrl = await saveToUploadsAndGetUrl(invoice);
+            const bankUrl = bank ? await saveToUploadsAndGetUrl(bank) : null;
+            const invoiceFileUrls = [invoiceUrl].filter(Boolean) as string[];
+            const bankFileUrls = [bankUrl].filter(Boolean) as string[];
             const payload = {
                 supplier_name: data.supplier_name || "",
                 business_number: data.business_number || "",
@@ -702,15 +725,14 @@ router.post(
                 amount: data.amount || 0,
                 project: data.project || "",
                 supplier_email: data.supplier_email || "",
-                bank_details_file: data.bank_details_file || null,
 
                 bank_name: bankNormalized.bank_name || "",
                 bank_branch: bankNormalized.bank_branch || "",
                 bank_account: bankNormalized.bank_account || "",
                 beneficiary: bankNormalized.beneficiary || "",
                 iban: bankNormalized.iban || "",
-                bank_source, // "uploaded" | "inline" | ""
-
+                invoice_file: invoiceFileUrls,          // ⬅️ יש עמודה כזו
+                bank_details_file: bankFileUrls,
                 _debug: {
                     ms,
                     model: GEMINI_MODEL,
@@ -718,6 +740,7 @@ router.post(
                     invoice_size: invoice.size,
                     bank_mime: bank?.mimetype || null,
                     bank_size: bank?.size || null,
+
                 },
             };
 

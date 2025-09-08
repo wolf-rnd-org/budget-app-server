@@ -6,6 +6,7 @@ import expensesRoutes from "./routes/expenses.routes.js";
 import programsRoutes from "./routes/programs.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
+import budgetsRoutes from "./routes/budgets.routes.js";
 
 const app = express();
 app.use(cors());
@@ -19,6 +20,8 @@ app.use("/expenses", expensesRoutes);
 app.use("/programs", programsRoutes);
 app.use("/auth", authRoutes);
 app.use("/documents", invoiceRoutes);
+app.use("/budgets/expenses", expensesRoutes); 
+app.use("/" /* או "/api" */, budgetsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

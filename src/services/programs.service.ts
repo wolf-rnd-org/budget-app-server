@@ -1,3 +1,4 @@
+import { readJson } from "../utils/fileDB.js";
 import { z } from "zod";
 import { base } from "../utils/airtableConfig.js";
 
@@ -77,11 +78,23 @@ async function loadAll(): Promise<Program[]> {
 }
 
 export async function listAll(): Promise<Program[]> {
-  return loadAll();
+  const recs = await base("programs")
+    .select({ fields: ["program_id", "name"] })
+    .all();
+
+  return recs.map(r =>
+    ProgramSchema.parse({
+      id: String(r.get("program_id") ?? r.id), // מה שיופיע ב-value של ה-<option>
+      name: String(r.get("name") ?? ""),
+      program_id: String(r.get("program_id") ?? ""),
+      recordId: r.id,
+    })
+  );
 }
 
+
 export async function getById(id: string): Promise<Program | null> {
-  const all = await loadAll();
+  const all = await listAll();
   return all.find(p => p.id === id) ?? null;
 }
 
