@@ -47,13 +47,38 @@ async function findProgramRecIdById(programId: string): Promise<string | null> {
   return null;
 }
 
-async function findCategoryRecIdsByNames(names: string[], _programRecId: string): Promise<string[]> {
-  if (!names.length) return [];
-  const formula = names.map(name => `{name} = "${name}"`).join(", ");
-  const categories = await base("categories")
-    .select({ filterByFormula: `OR(${formula})` })
-    .all();
-  return categories.map(cat => cat.id);
+async function findCategoryRecIdsByNames(tokens: string[], programRecId: string): Promise<string[]> {
+  // Note: despite the name, we now resolve by category ID (or recId),
+  // scoped to categories linked to the given program.
+  if (!tokens.length) return [];
+
+  const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+
+  // Load categories and restrict to those linked to programRecId
+  const all = await base("categories").select({ pageSize: 100 }).all();
+  const recs = all.filter(r => {
+    const fields = r.fields as Record<string, any>;
+    return Object.values(fields).some(v => Array.isArray(v) && v.some(it => typeof it === "string" && it === programRecId));
+  });
+
+  // Build lookup maps: by numeric/text ID and by record id
+  const byAutoId = new Map<string, string>();
+  const validRecIds = new Set<string>();
+  for (const r of recs) {
+    validRecIds.add(r.id);
+    const idVal = (r.get("ID") as any) ?? (r.get("category_id") as any) ?? (r.get("id") as any);
+    if (idVal != null) byAutoId.set(String(idVal), r.id);
+  }
+
+  const out: string[] = [];
+  for (const t of tokens) {
+    const tok = String(t ?? "").trim();
+    if (!tok) continue;
+    if (recIdPattern.test(tok)) { if (validRecIds.has(tok)) out.push(tok); continue; }
+    const viaId = byAutoId.get(tok);
+    if (viaId) { out.push(viaId); continue; }
+  }
+  return out;
 }
 
 const r = Router();
@@ -160,16 +185,20 @@ const CreatePayload = z.object({
 // POST /expenses
 r.post("/", async (req, res, next) => {
   try {
-    const raw = CreatePayload.parse(req.body);
-console.log(raw);
+    const body: any = { ...req.body };
+    const raw = CreatePayload.parse(body);
+    console.log("after", raw);
 
     // 1) program_id → program_rec_id
     const program_rec_id = await findProgramRecIdById(raw.program_id);
     if (!program_rec_id) return res.status(422).json({ error: "Invalid program_id" });
 
     // 2) שמות קטגוריה → recIds (מסונן לפי תוכנית)
+    const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
     const category_rec_ids = raw.categories.length
-      ? await findCategoryRecIdsByNames(raw.categories, program_rec_id)
+      ? (raw.categories.every((c) => recIdPattern.test(c))
+          ? raw.categories // already record IDs
+          : await findCategoryRecIdsByNames(raw.categories, program_rec_id))
       : [];
 
     // 3) payload נקי לשכבת השירות
