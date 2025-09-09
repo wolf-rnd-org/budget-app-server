@@ -25,7 +25,7 @@ r.get("/", async (req, res, next) => {
 //     const recs = await base("categories").select({ pageSize: 100 }).all();
 //     const out = recs.map((r) => ({
 //       id: r.id,
-//       name: String((r.get("Name") as any) ?? (r.get("name") as any) ?? ""),
+//       name: String((r.get("name") as any) ?? (r.get("name") as any) ?? ""),
 //     }));
 //     res.json(out);
 //   } catch (e) {
