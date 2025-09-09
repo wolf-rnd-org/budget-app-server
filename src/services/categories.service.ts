@@ -17,18 +17,12 @@ export async function getCategoriesForProgram(programKey: string) {
   const pid = String(programKey || "").trim();
   if (!pid) return [];
 
-  // תומך גם ב-recId וגם ב-id לוגי
-  const programRecId = /^rec[0-9A-Za-z]{14}$/i.test(pid)
-    ? pid
-    : await findProgramRecIdById(pid);
-
-  if (!programRecId) return [];
-
+  // סינון לפי הערך המוצג בשדה הקישור (המספרים 1/12/82)
+  const formula = `FIND("," & "${pid}" & ",", "," & ARRAYJOIN({program_ids}, ",") & ",")`;
   const recs = await base("categories").select({
     pageSize: 100,
-    // סינון מדויק לשדה Link {programs_id}
-    filterByFormula: `FIND("," & "${programRecId}" & ",", "," & ARRAYJOIN({programs_id}, ",") & ",")`,
-    fields: ["category_id", "name"],
+    filterByFormula: formula,
+    fields: ["category_id", "name", "program_ids"],
     sort: [{ field: "name", direction: "asc" }],
   }).all();
 
@@ -55,7 +49,7 @@ export async function resolveCategoryLinksByNames(programRecId: string, names: s
   for (const r of recs) {
     const nm = String(r.get("name") ?? "").trim();
     if (nm) byName.set(nm, r.id);
-    const autoId = r.get("ID");
+    const autoId = r.get("category_id");
     if (autoId != null) byId.set(String(autoId), r.id);
   }
 
