@@ -28,14 +28,14 @@ export async function getCategoriesForProgram(programKey: string) {
     pageSize: 100,
     // סינון מדויק לשדה Link {programs_id}
     filterByFormula: `FIND("," & "${programRecId}" & ",", "," & ARRAYJOIN({programs_id}, ",") & ",")`,
-    fields: ["category_id", "Name"],
-    sort: [{ field: "Name", direction: "asc" }],
+    fields: ["category_id", "name"],
+    sort: [{ field: "name", direction: "asc" }],
   }).all();
 
   return recs.map(r => ({
     recId: r.id,
     category_id: String(r.get("category_id") ?? ""),
-    name: String(r.get("Name") ?? ""),
+    name: String(r.get("name") ?? ""),
   }));
 }
 
@@ -53,7 +53,7 @@ export async function resolveCategoryLinksByNames(programRecId: string, names: s
   const byName = new Map<string, string>();
   const byId = new Map<string, string>();
   for (const r of recs) {
-    const nm = String(r.get("Name") ?? "").trim();
+    const nm = String(r.get("name") ?? "").trim();
     if (nm) byName.set(nm, r.id);
     const autoId = r.get("ID");
     if (autoId != null) byId.set(String(autoId), r.id);

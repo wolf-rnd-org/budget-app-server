@@ -215,7 +215,7 @@ export async function listExpensesForUserPrograms(args: {
   priority?: "urgent" | "normal" | undefined;
   date_from?: string | undefined;
   date_to?: string | undefined;
-  sort_by?: "date" | "amount" | "status" | "created_at" | undefined;
+  sort_by?: "date" | "amount" | "status" | "created_at" | "supplier_name" | undefined;
   sort_dir?: "asc" | "desc" | undefined;
 }) {
   const {
@@ -234,7 +234,7 @@ export async function listExpensesForUserPrograms(args: {
 
   // 1) Load user's programs from Airtable
   const programs = await base("programs").select({
-    filterByFormula: `{user_id} = "${String(userId)}"`,
+    filterByFormula: `OR({user_ids} = "${String(userId)}", FIND("${String(userId)}", ARRAYJOIN({user_ids})))`,
     pageSize: 100,
   }).all();
 
@@ -298,6 +298,10 @@ export async function listExpensesForUserPrograms(args: {
     let av: any;
     let bv: any;
     switch (by) {
+      case "supplier_name":
+        av = String(a.supplier_name ?? "");
+        bv = String(b.supplier_name ?? "");
+        break;
       case "amount":
         av = Number(a.amount ?? 0);
         bv = Number(b.amount ?? 0);
@@ -410,7 +414,7 @@ export async function queryExpenses(args: {
     priority?: "urgent" | "normal" | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
-    sort_by?: "date" | "amount" | "status" | "created_at" | undefined;
+    sort_by?: "date" | "amount" | "status" | "created_at" | "supplier_name" | undefined;
     sort_dir?: "asc" | "desc" | undefined;
     requestedPrograms: string[];
   };
@@ -504,6 +508,10 @@ export async function queryExpenses(args: {
     let av: any;
     let bv: any;
     switch (by) {
+      case "supplier_name":
+        av = String(a.supplier_name ?? "");
+        bv = String(b.supplier_name ?? "");
+        break;
       case "amount":
         av = Number(a.amount ?? 0);
         bv = Number(b.amount ?? 0);

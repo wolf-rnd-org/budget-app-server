@@ -9,6 +9,7 @@ import multer from "multer";
 
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
+import { getCategoriesForProgram } from "../services/categories.service.js";
 
 // Resolve a program identifier to its Airtable record ID.
 // Accepts either an actual record id (recXXXXXXXXXXXXXXX) or a textual id.
@@ -92,7 +93,7 @@ const emptyToUndef = (v: unknown) => (v === "" ? undefined : v);
 
 
 const QuerySchema = z.object({
-  user_id: z.coerce.number().int().min(1),
+  user_id: z.coerce.number().int().min(1).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   // Treat empty q as undefined (no search)
@@ -102,9 +103,12 @@ const QuerySchema = z.object({
   priority: z.enum(["urgent", "normal"]).optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  sort_by: z.enum(["date", "amount", "status", "created_at"]).default("date").optional(),
+  sort_by: z
+    .enum(["date", "amount", "status", "created_at", "supplier_name"]) 
+    .default("date")
+    .optional(),
   sort_dir: z.enum(["asc", "desc"]).default("desc").optional(),
-  // Treat empty program_id as undefined
+  // Treat empty program_id as undefined; at least one program_id is required overall
   program_id: z.preprocess(emptyToUndef, z.string().optional()),
 });
 
@@ -139,6 +143,37 @@ r.get("/", async (req, res, next) => {
       });
     }
 
+    // Require at least one program id
+    if (!requestedPrograms.length) {
+      return res.status(400).json({ error: "validation_error", message: "program_id is required" });
+    }
+
+    // If user_id is not provided, return all expenses for the program only
+    if (base.data.user_id === undefined) {
+      if (requestedPrograms.length > 1) {
+        return res.status(400).json({ error: "validation_error", message: "Provide a single program_id when user_id is omitted" });
+      }
+      const pg = requestedPrograms[0]!;
+      const result = await getExpenses(pg as string, base.data.page, base.data.pageSize);
+
+      // Enrich categories: ids -> { id, name }; ensure stable shape even on failure
+      let nameByRecId = new Map<string, string>();
+      try {
+        const cats = await getCategoriesForProgram(pg as string);
+        nameByRecId = new Map<string, string>(cats.map(c => [c.recId, c.name]));
+      } catch (_e) {
+        // leave map empty; we'll still map to objects with empty names
+      }
+      const mapped = result.data.map((row: any) => {
+        const raw = row?.categories;
+        const arr = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
+        const categories = arr.map((cid: string) => ({ id: cid, name: nameByRecId.get(cid) ?? "" }));
+        return { ...row, categories };
+      });
+      return res.json({ ...result, data: mapped });
+    }
+
+    // Otherwise, filter by both program(s) and user
     const result = await listExpensesForUserPrograms({
       userId: base.data.user_id,
       page: base.data.page,
@@ -153,7 +188,26 @@ r.get("/", async (req, res, next) => {
       requestedPrograms,
     });
 
-    res.json(result);
+    // Enrich categories for multi-program case; keep shape stable on failures
+    // Build a unified map of category recId -> name across relevant program(s)
+    let nameByRecId = new Map<string, string>();
+    try {
+      const programsForCats = requestedPrograms.length ? requestedPrograms : [];
+      const catLists = await Promise.all(programsForCats.map((pid) => getCategoriesForProgram(pid)));
+      nameByRecId = new Map<string, string>();
+      for (const list of catLists) for (const c of list) nameByRecId.set(c.recId, c.name);
+    } catch (_e) {
+      // leave map empty
+    }
+
+    const mapped = result.data.map((row: any) => {
+      const raw = row?.categories;
+      const arr = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
+      const categories = arr.map((cid: string) => ({ id: cid, name: nameByRecId.get(cid) ?? "" }));
+      return { ...row, categories };
+    });
+
+    return res.json({ ...result, data: mapped });
   } catch (e: any) {
     next(e);
   }
@@ -180,10 +234,10 @@ const CreatePayload = z.object({
   invoice_description: z.string().min(1),
   supplier_email: z.string().email().or(z.string().min(1)),
   status: z.string().optional(), // אופציונלי בלבד
-categories: z.preprocess(
-  (v) => Array.isArray(v) ? v : (v == null ? [] : [v]),
-  z.array(z.string())
-).optional().default([]),
+  categories: z.preprocess(
+    (v) => Array.isArray(v) ? v : (v == null ? [] : [v]),
+    z.array(z.string())
+  ).optional().default([]),
   bank_name: z.string().optional(),
   bank_branch: z.string().optional(),
   bank_account: z.string().optional(),
