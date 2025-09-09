@@ -6,16 +6,12 @@ const r = Router();
 
 r.get("/", async (req, res, next) => {
   try {
-    const programId = String(req.query.program_id || "").trim();
-    if (!programId) {
-      return res.status(400).json({ error: "program_id is required" });
-    }
+    const programId = String(req.query.program_id || req.query.program_ids || "").trim();
+    if (!programId) return res.status(400).json({ error: "program_id is required" });
 
     const cats = await getCategoriesForProgram(programId);
-    return res.json(cats);
-  } catch (err) {
-    next(err);
-  }
+    res.json(cats);
+  } catch (err) { next(err); }
 });
 
 // GET /categories
