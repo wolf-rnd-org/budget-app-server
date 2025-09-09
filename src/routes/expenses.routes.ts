@@ -1,7 +1,7 @@
 // src/routes/expenses.routes.ts
 import { Router } from "express";
 import * as svc from "../services/expenses.service.js";
-import { getExpenses } from "../services/expenses.service.js";
+import { listExpensesForProgram } from "../services/expenses.service.js";
 import { listExpensesForUserPrograms } from "../services/expenses.service.js";
 import { z } from "zod";
 import multer from "multer";
@@ -154,7 +154,18 @@ r.get("/", async (req, res, next) => {
         return res.status(400).json({ error: "validation_error", message: "Provide a single program_id when user_id is omitted" });
       }
       const pg = requestedPrograms[0]!;
-      const result = await getExpenses(pg as string, base.data.page, base.data.pageSize);
+      const result = await listExpensesForProgram({
+        program: pg as string,
+        page: base.data.page,
+        pageSize: base.data.pageSize,
+        q: base.data.q,
+        status: base.data.status,
+        priority: base.data.priority,
+        date_from: base.data.date_from,
+        date_to: base.data.date_to,
+        sort_by: base.data.sort_by,
+        sort_dir: base.data.sort_dir,
+      });
 
       // Enrich categories: ids -> { id, name }; ensure stable shape even on failure
       let nameByRecId = new Map<string, string>();
