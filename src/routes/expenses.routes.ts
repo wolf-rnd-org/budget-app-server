@@ -187,7 +187,6 @@ r.post("/", async (req, res, next) => {
   try {
     const body: any = { ...req.body };
     const raw = CreatePayload.parse(body);
-    console.log("after", raw);
 
     // 1) program_id → program_rec_id
     const program_rec_id = await findProgramRecIdById(raw.program_id);
@@ -225,7 +224,6 @@ r.post("/", async (req, res, next) => {
     if (Array.isArray(payload.invoice_file) && payload.invoice_file.length === 0) {
       delete payload.invoice_file;
     }
-console.log(payload);
 
     // 4) שמירה
     const created = await svc.createExpense(payload);
