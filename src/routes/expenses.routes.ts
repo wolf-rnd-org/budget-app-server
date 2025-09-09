@@ -4,6 +4,8 @@ import * as svc from "../services/expenses.service.js";
 import { getExpenses } from "../services/expenses.service.js";
 import { listExpensesForUserPrograms } from "../services/expenses.service.js";
 import { z } from "zod";
+import multer from "multer";
+
 
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
@@ -125,8 +127,8 @@ r.get("/", async (req, res, next) => {
     const requestedPrograms: string[] = Array.isArray(arrayParam)
       ? arrayParam.map((x) => String(x))
       : base.data.program_id
-      ? [String(base.data.program_id)]
-      : [];
+        ? [String(base.data.program_id)]
+        : [];
 
     // Validate date range semantics
     if (base.data.date_from && base.data.date_to && base.data.date_from > base.data.date_to) {
@@ -157,6 +159,14 @@ r.get("/", async (req, res, next) => {
   }
 });
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+const uploadFields = upload.fields([
+  { name: "invoice_file", maxCount: 1 },
+  { name: "bank_details_file", maxCount: 1 },
+]);
 
 // סכמה אחידה:
 const CreatePayload = z.object({
@@ -170,8 +180,10 @@ const CreatePayload = z.object({
   invoice_description: z.string().min(1),
   supplier_email: z.string().email().or(z.string().min(1)),
   status: z.string().optional(), // אופציונלי בלבד
-  categories: z.array(z.string()).optional().default([]),
-
+categories: z.preprocess(
+  (v) => Array.isArray(v) ? v : (v == null ? [] : [v]),
+  z.array(z.string())
+).optional().default([]),
   bank_name: z.string().optional(),
   bank_branch: z.string().optional(),
   bank_account: z.string().optional(),
@@ -183,7 +195,7 @@ const CreatePayload = z.object({
 });
 
 // POST /expenses
-r.post("/", async (req, res, next) => {
+r.post("/", uploadFields, async (req, res, next) => {
   try {
     const body: any = { ...req.body };
     const raw = CreatePayload.parse(body);
@@ -196,8 +208,8 @@ r.post("/", async (req, res, next) => {
     const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
     const category_rec_ids = raw.categories.length
       ? (raw.categories.every((c) => recIdPattern.test(c))
-          ? raw.categories // already record IDs
-          : await findCategoryRecIdsByNames(raw.categories, program_rec_id))
+        ? raw.categories // already record IDs
+        : await findCategoryRecIdsByNames(raw.categories, program_rec_id))
       : [];
 
     // 3) payload נקי לשכבת השירות
@@ -206,7 +218,7 @@ r.post("/", async (req, res, next) => {
       program_rec_id,
       categories: category_rec_ids,
       project: raw.project ?? "",
-        status: "new",
+      status: "new",
 
     };
     // Add optional fields only if defined
@@ -227,6 +239,29 @@ r.post("/", async (req, res, next) => {
 
     // 4) שמירה
     const created = await svc.createExpense(payload);
+    if (req.files && created?.id) {
+      const files = req.files as Record<string, Express.Multer.File[] | undefined>;
+
+      if (files?.invoice_file?.[0]) {
+        const f = files.invoice_file[0];
+        await svc.uploadAttachmentToAirtable({
+          recordId: created.id, fieldName: "invoice_file",
+          buffer: f.buffer, filename: f.originalname, mime: f.mimetype
+        });
+      }
+
+      if (files?.bank_details_file?.[0]) {
+        const f = files.bank_details_file[0];
+        await svc.uploadAttachmentToAirtable({
+          recordId: created.id, fieldName: "bank_details_file",
+          buffer: f.buffer, filename: f.originalname, mime: f.mimetype
+        });
+      }
+
+      // אופציונלי: למשוך את הרשומה שוב ולהחזיר ללקוח את הערך המעודכן של השדה
+      const refreshed = await svc.getExpenseById(created.id);
+      return res.status(201).json(refreshed || created);
+    }
     return res.status(201).json(created);
   } catch (e: any) {
     if (e?.issues) return res.status(422).json({ error: "Validation failed", issues: e.issues });

@@ -1,6 +1,44 @@
 // services/categories.service.ts
 import { base } from "../utils/airtableConfig.js";
 
+
+// NEW: שליפה לפי פרויקט (program)
+async function findProgramRecIdById(programId: string) {
+  const page = await base("programs").select({
+    pageSize: 1,
+    maxRecords: 1,
+
+    filterByFormula: `{program_id} = "${programId}"`
+  }).firstPage();
+  return page[0]?.id ?? null;
+}
+
+export async function getCategoriesForProgram(programKey: string) {
+  const pid = String(programKey || "").trim();
+  if (!pid) return [];
+
+  // תומך גם ב-recId וגם ב-id לוגי
+  const programRecId = /^rec[0-9A-Za-z]{14}$/i.test(pid)
+    ? pid
+    : await findProgramRecIdById(pid);
+
+  if (!programRecId) return [];
+
+  const recs = await base("categories").select({
+    pageSize: 100,
+    // סינון מדויק לשדה Link {programs_id}
+    filterByFormula: `FIND("," & "${programRecId}" & ",", "," & ARRAYJOIN({programs_id}, ",") & ",")`,
+    fields: ["category_id", "Name"],
+    sort: [{ field: "Name", direction: "asc" }],
+  }).all();
+
+  return recs.map(r => ({
+    recId: r.id,
+    category_id: String(r.get("category_id") ?? ""),
+    name: String(r.get("Name") ?? ""),
+  }));
+}
+
 export async function resolveCategoryLinksByNames(programRecId: string, names: string[]) {
   if (!programRecId || !names?.length) return [];
   const esc = (s: string) => s.replace(/"/g, '\\"');
