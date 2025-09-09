@@ -350,6 +350,141 @@ export async function listExpensesForUserPrograms(args: {
     priority: (e.priority ?? null) as any,
     program_id: String((e as any).program_id ?? ""),
   }));
+console.log(data.length);
+
+  return { data, hasMore, totalCount };
+}
+
+export async function listExpensesForProgram(args: {
+  program: string; // recId or text id
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  q?: string | undefined;
+  status?: string | undefined;
+  priority?: "urgent" | "normal" | undefined;
+  date_from?: string | undefined;
+  date_to?: string | undefined;
+  sort_by?: "date" | "amount" | "status" | "created_at" | "supplier_name" | undefined;
+  sort_dir?: "asc" | "desc" | undefined;
+}) {
+  const {
+    program,
+    page = 1,
+    pageSize = 20,
+    q,
+    status,
+    priority,
+    date_from,
+    date_to,
+    sort_by = "date",
+    sort_dir = "desc",
+  } = args;
+
+  // Resolve program record id
+  const pid = String(program || "").trim();
+  if (!pid) return { data: [], hasMore: false, totalCount: 0 };
+  const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+  let recId: string | null = null;
+  let textId: string | undefined = undefined;
+  if (recIdPattern.test(pid)) {
+    recId = pid;
+  } else {
+    const esc = pid.replace(/\"/g, '\\"');
+    const found = await base("programs")
+      .select({ filterByFormula: `{program_id} = "${esc}"`, maxRecords: 1, pageSize: 1 })
+      .all();
+    if (found[0]) {
+      recId = found[0].id;
+      textId = (found[0].fields as any)?.program_id as string | undefined;
+    }
+  }
+  if (!recId) return { data: [], hasMore: false, totalCount: 0 };
+
+  const allRows: AirtableRow[] = await fetchAllExpensesForProgram(recId, textId ?? pid);
+
+  // Filters
+  let filtered = allRows;
+  if (status) filtered = filtered.filter((e: any) => String(e.status ?? "") === status);
+  if (priority) filtered = filtered.filter((e: any) => (e.priority ?? null) === priority);
+  if (date_from || date_to) {
+    filtered = filtered.filter((e: any) => {
+      const d = String(e.date ?? "");
+      if (date_from && d < date_from) return false;
+      if (date_to && d > date_to) return false;
+      return true;
+    });
+  }
+  if (q) {
+    const needle = q.toLowerCase();
+    filtered = filtered.filter((e: any) => {
+      const hay = [
+        String(e.invoice_description ?? ""),
+        String(e.supplier_name ?? ""),
+        String(e.project ?? ""),
+        String((e as any).invoice_number ?? ""),
+      ].join("\n").toLowerCase();
+      return hay.includes(needle);
+    });
+  }
+
+  // Sorting
+  const dir = sort_dir === "asc" ? 1 : -1;
+  const by = sort_by;
+  filtered.sort((a: any, b: any) => {
+    let av: any;
+    let bv: any;
+    switch (by) {
+      case "supplier_name":
+        av = String(a.supplier_name ?? "");
+        bv = String(b.supplier_name ?? "");
+        break;
+      case "amount":
+        av = Number(a.amount ?? 0);
+        bv = Number(b.amount ?? 0);
+        break;
+      case "status":
+        av = String(a.status ?? "");
+        bv = String(b.status ?? "");
+        break;
+      case "created_at":
+        av = String((a as any).created_at ?? a.date ?? "");
+        bv = String((b as any).created_at ?? b.date ?? "");
+        break;
+      case "date":
+      default:
+        av = String(a.date ?? "");
+        bv = String(b.date ?? "");
+        break;
+    }
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+
+  const totalCount = filtered.length;
+  const start = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
+  const rows = filtered.slice(start, start + Math.max(1, pageSize));
+  const hasMore = start + rows.length < totalCount;
+
+  const data = rows.map((e: any) => ({
+    id: String(e.id),
+    budget: Number(e.budget ?? 0),
+    project: String(e.project ?? ""),
+    date: String(e.date ?? ""),
+    categories: Array.isArray(e.categories) ? e.categories : String(e.categories ?? ""),
+    amount: Number(e.amount ?? 0),
+    invoice_description: String(e.invoice_description ?? ""),
+    supplier_name: String(e.supplier_name ?? ""),
+    invoice_file: String(e.invoice_file ?? ""),
+    business_number: String(e.business_number ?? ""),
+    invoice_type: String(e.invoice_type ?? ""),
+    bank_details_file: e.bank_details_file ? String(e.bank_details_file) : null,
+    supplier_email: e.supplier_email ? String(e.supplier_email) : null,
+    status: String(e.status ?? ""),
+    user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
+    priority: (e.priority ?? null) as any,
+    program_id: String((e as any).program_id ?? ""),
+  }));
 
   return { data, hasMore, totalCount };
 }
