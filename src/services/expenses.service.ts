@@ -64,6 +64,10 @@ export async function list(params: {
 type AirtableRow = Record<string, any>;
 
 
+export async function getExpenseById(recordId: string) {
+  const rec = await base("expenses").find(recordId);
+  return { id: rec.id, fields: rec.fields };
+}
 
 export async function getExpenses(
   programId: string,
@@ -551,4 +555,40 @@ export async function queryExpenses(args: {
 
   const hasMore = start + data.length < totalCount;
   return { data, hasMore, totalCount };
+}
+
+export async function uploadAttachmentToAirtable(opts: {
+  recordId: string;
+  fieldName: string;              // למשל 'invoice_file'
+  buffer: Buffer;
+  filename: string;
+  mime: string;
+}) {
+  const { recordId, fieldName, buffer, filename, mime } = opts;
+
+  const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.AIRTABLE_TOKEN}`,
+      "Content-Type": mime,
+      // Content-Disposition נדרש כדי לשמר שם קובץ בתצוגה
+      "Content-Disposition": `attachment; filename="${sanitizeFilename(filename)}"`,
+      "Content-Length": String(buffer.length),
+    } as any,
+    body: buffer,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Airtable uploadAttachment failed (${res.status}): ${text}`);
+  }
+
+  return await res.json(); // מחזיר metadata של ה־attachments בשדה
+}
+
+function sanitizeFilename(name: string) {
+  // שמירה פשוטה – להימנע מציטוטים ותווים בעייתיים
+  return name.replace(/[\r\n"]/g, "_");
 }
