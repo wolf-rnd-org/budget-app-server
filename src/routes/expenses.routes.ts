@@ -104,7 +104,7 @@ const QuerySchema = z.object({
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sort_by: z
-    .enum(["date", "amount", "status", "created_at", "supplier_name"]) 
+    .enum(["date", "amount", "status", "created_at", "supplier_name"])
     .default("date")
     .optional(),
   sort_dir: z.enum(["asc", "desc"]).default("desc").optional(),
@@ -278,17 +278,24 @@ r.post("/", uploadFields, async (req, res, next) => {
 
       if (files?.invoice_file?.[0]) {
         const f = files.invoice_file[0];
-        await svc.uploadAttachmentToAirtable({
-          recordId: created.id, fieldName: "invoice_file",
-          buffer: f.buffer, filename: f.originalname, mime: f.mimetype
+        await svc.uploadAttachmentToAirtableJSON({
+          recordId: created.id,
+          fieldName: "invoice_file",
+          buffer: f.buffer,
+          filename: f.originalname,
+          mime: f.mimetype,
         });
       }
+      console.log("bbb");
 
       if (files?.bank_details_file?.[0]) {
         const f = files.bank_details_file[0];
-        await svc.uploadAttachmentToAirtable({
-          recordId: created.id, fieldName: "bank_details_file",
-          buffer: f.buffer, filename: f.originalname, mime: f.mimetype
+        await svc.uploadAttachmentToAirtableJSON({
+          recordId: created.id,
+          fieldName: "bank_details_file",
+          buffer: f.buffer,
+          filename: f.originalname,
+          mime: f.mimetype,
         });
       }
 
@@ -347,8 +354,7 @@ export default r;
 // Build categories from expense row fields without extra program fetches.
 function toArray(v: any): any[] { return Array.isArray(v) ? v : (v == null ? [] : [v]); }
 function categoriesFromRow(row: any): Array<{ id: string; name: string }> {
-  console.log("categoriesFromRow", row);
-  
+
   const idsRaw = toArray(row?.category_id ?? row?.categories);
   const namesRaw = toArray(row?.category_name ?? row?.category ?? row?.categories_name);
   const out: Array<{ id: string; name: string }> = [];
