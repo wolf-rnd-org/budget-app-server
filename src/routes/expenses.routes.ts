@@ -335,3 +335,36 @@ r.post("/", uploadFields, async (req, res, next) => {
 });
 
 export default r;
+
+// Helper: normalize Airtable/primitive attachment field to array of { url, filename? }
+function normalizeAttachments(v: any): Array<{ url: string; filename?: string }> {
+  if (!v) return [];
+  if (typeof v === "string") return v ? [{ url: v }] : [];
+  if (Array.isArray(v)) return v.map(x => (typeof x === "string" ? { url: x } : x)).filter(a => a?.url);
+  if (typeof v === "object" && (v as any).url) return [v as any];
+  return [];
+}
+
+// GET /expenses/:id/files/:field/:index -> 302 redirect to attachment URL
+r.get("/:id/files/:field/:index", async (req, res, next) => {
+  try {
+    const { id, field, index } = req.params as { id: string; field: string; index: string };
+    const allowed = new Set(["invoice_file", "bank_details_file"]);
+    if (!allowed.has(field)) {
+      return res.status(400).json({ error: "validation_error", message: "Invalid field", details: { field } });
+    }
+    const rec = await base("expenses").find(id);
+    const files = normalizeAttachments((rec.fields as any)[field]);
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= files.length) {
+      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
+    }
+    const file = files[i];
+    if (!file || !file.url) {
+      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
+    }
+    return res.redirect(302, String(file.url));
+  } catch (e) {
+    next(e);
+  }
+});
