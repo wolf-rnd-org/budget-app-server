@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
 import budgetsRoutes from "./routes/budgets.routes.js";
 import categoriesRoutes from "./routes/categories.routes.js";
+import fundingSourcesRouter from "./routes/fundingSources.router.js";
 
 const app = express();
 app.use(cors());
@@ -17,6 +18,7 @@ app.use(express.json());
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/budgets/categories", categoriesRoutes);
+app.use("/budgets/funding-sources", fundingSourcesRouter);
 app.use("/budgets", budgetRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/programs", programsRoutes);
