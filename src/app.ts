@@ -21,6 +21,7 @@ app.use("/budgets/categories", categoriesRoutes);
 app.use("/budgets/funding-sources", fundingSourcesRouter);
 app.use("/budgets", budgetRoutes);
 app.use("/expenses", expensesRoutes);
+app.use("/budgets/budget/expenses", expensesRoutes); // alias to support client path
 app.use("/programs", programsRoutes);
 app.use("/categories", categoriesRoutes);
 app.use("/auth", authRoutes);

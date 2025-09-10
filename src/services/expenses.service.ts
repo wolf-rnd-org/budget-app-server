@@ -148,6 +148,7 @@ type CreateExpenseInput = {
   supplier_email: string;
   status: "new" | "sent_for_payment" | "paid" | "receipt_uploaded" | "closed";
   categories: string[];
+  funding_source_id?: string;
   bank_name?: string;
   bank_branch?: string;
   bank_account?: string;
@@ -248,7 +249,7 @@ export async function listExpensesForUserPrograms(args: {
     const textId = (p.fields as any)?.program_id as string | undefined;
     if (textId) allowedByText.add(textId);
   }
-  let effectiveTargets: Array<{ recId: string; textId: string | undefined }>; 
+  let effectiveTargets: Array<{ recId: string; textId: string | undefined }>;
   if (requestedPrograms.length > 0) {
     const req = new Set(requestedPrograms.map(String));
     effectiveTargets = programs
@@ -353,7 +354,7 @@ export async function listExpensesForUserPrograms(args: {
     priority: (e.priority ?? null) as any,
     program_id: String((e as any).program_id ?? ""),
   }));
-console.log(data.length);
+  console.log(data.length);
 
   return { data, hasMore, totalCount };
 }
@@ -514,7 +515,16 @@ export async function createExpense(input: CreateExpenseInput) {
     beneficiary: input.beneficiary,
     project: input.project,
   };
-  
+
+  // Map client funding_source_id -> Airtable budget_id
+  if (typeof (input as any).funding_source_id === "string") {
+    const fsid = (input as any).funding_source_id.trim();
+    if (fsid) {
+      const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+      fields.budget_id = recIdPattern.test(fsid) ? [fsid] : fsid;
+    }
+  }
+
   // // המרה של שמות קטגוריות ל־recIds (אם השדה הוא Link לטבלת categories)
   // const { resolveCategoryLinksByNames } = await import("./categories.service.js");
   // if (Array.isArray(input.categories) && input.categories.length) {
@@ -526,7 +536,7 @@ export async function createExpense(input: CreateExpenseInput) {
   //   }
   // }
 
-  
+
   const bankAtt = toAttachmentArray(input.bank_details_file);
   if (bankAtt.length) fields.bank_details_file = bankAtt;
 
@@ -540,9 +550,59 @@ export async function createExpense(input: CreateExpenseInput) {
       delete fields[k];
     }
   }
-console.log("Creating expense with fields:", fields);
 
   const rec = await base("expenses").create(fields);
+  return { id: rec.id, fields: rec.fields };
+}
+
+export type UpdateExpenseInput = Partial<{
+  program_id: string;            // rec id or text id (we'll keep as-is if rec id)
+  date: string;
+  amount: number;
+  supplier_name: string;
+  business_number: string;
+  invoice_type: string;
+  invoice_description: string;
+  supplier_email: string;
+  status: string;
+  user_id: string | number;
+  categories: string[];          // array of category record ids
+  bank_name: string;
+  bank_branch: string;
+  bank_account: string;
+  beneficiary: string;
+  project: string;
+}>;
+
+export async function updateExpense(recordId: string, input: UpdateExpenseInput) {
+  const fields: Record<string, any> = {};
+  // Only include provided keys
+  if (input.program_id) fields.program_id = [input.program_id];
+  if (input.date !== undefined) fields.date = input.date;
+  if (input.amount !== undefined) fields.amount = input.amount;
+  if (input.supplier_name !== undefined) fields.supplier_name = input.supplier_name;
+  if (input.business_number !== undefined) fields.business_number = input.business_number;
+  if (input.invoice_type !== undefined) fields.invoice_type = input.invoice_type;
+  if (input.invoice_description !== undefined) fields.invoice_description = input.invoice_description;
+  if (input.supplier_email !== undefined) fields.supplier_email = input.supplier_email;
+  if (input.status !== undefined) fields.status = normalizeStatus(input.status);
+  if (input.user_id !== undefined) fields.user_id = String(input.user_id ?? "");
+  if (Array.isArray(input.categories)) fields.categories = input.categories;
+  if (input.bank_name !== undefined) fields.bank_name = input.bank_name;
+  if (input.bank_branch !== undefined) fields.bank_branch = input.bank_branch;
+  if (input.bank_account !== undefined) fields.bank_account = input.bank_account;
+  if (input.beneficiary !== undefined) fields.beneficiary = input.beneficiary;
+  if (input.project !== undefined) fields.project = input.project;
+
+  // Clean undefined/empty (except allow empty string to clear text fields if desired)
+  for (const k of Object.keys(fields)) {
+    const v = fields[k];
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0)) {
+      delete fields[k];
+    }
+  }
+
+  const rec = await base("expenses").update(recordId, fields);
   return { id: rec.id, fields: rec.fields };
 }
 export async function queryExpenses(args: {
@@ -710,34 +770,110 @@ export async function queryExpenses(args: {
 }
 
 export async function uploadAttachmentToAirtable(opts: {
-  recordId: string;
-  fieldName: string;              // למשל 'invoice_file'
-  buffer: Buffer;
-  filename: string;
-  mime: string;
-}) {
-  const { recordId, fieldName, buffer, filename, mime } = opts;
-
+  recordId: string; fieldName: string; buffer: Buffer; fileName: string; mime: string, tableName: string
+}) {  
+  const { recordId, fieldName, buffer, fileName, mime, tableName } = opts;
   const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
+  console.log(url);
+  
+// const tableName = "expenses"; // נניח שהטבלה היא expenses
+  // Prepare safer headers for filenames/mime and optional debug
+  const safeMime = mime && String(mime).trim() ? mime : "application/octet-stream";
+  const asciiName = sanitizeFilename(fileName).replace(/[^\x20-\x7E]/g, "_");
+  const filenameStar = encodeURIComponent(fileName);
+  if (process.env.DEBUG_AIRTABLE === "1") {
+     console.error("[Airtable/uploadAttachment]", { url, tableName, recordId, fieldName, fileName, asciiName, mime: safeMime, size: buffer?.length ?? 0 });
+  }
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${process.env.AIRTABLE_TOKEN}`,
-      "Content-Type": mime,
+      "Content-Type": safeMime,
       // Content-Disposition נדרש כדי לשמר שם קובץ בתצוגה
-      "Content-Disposition": `attachment; filename="${sanitizeFilename(filename)}"`,
+      // ASCII fallback + RFC 5987 filename*
+      "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${filenameStar}`,
       "Content-Length": String(buffer.length),
     } as any,
     body: buffer,
   });
 
   if (!res.ok) {
+    const requestId = res.headers.get("x-airtable-request-id") || res.headers.get("x-request-id") || "";
+    const ct = res.headers.get("content-type") || "";
     const text = await res.text().catch(() => "");
-    throw new Error(`Airtable uploadAttachment failed (${res.status}): ${text}`);
+    let message = text;
+    if (ct.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(text);
+        const errPayload = (parsed as any)?.error ?? parsed;
+        message = JSON.stringify(errPayload);
+      } catch {
+        // keep raw text
+      }
+    }
+    const err: any = new Error(message || "Airtable uploadAttachment failed");
+    err.status = res.status;
+    if (requestId) err.requestId = requestId;
+    err.details = `status=${res.status}${res.statusText ? " " + res.statusText : ""}${requestId ? ` reqId=${requestId}` : ""}`;
+    err.endpoint = url;
+    err.context = { tableName, recordId, fieldName, size: buffer?.length ?? 0, mime };
+    throw err;
   }
 
   return await res.json(); // מחזיר metadata של ה־attachments בשדה
+}
+
+// Alternative upload using Airtable's JSON (base64) payload as per docs
+export async function uploadAttachmentToAirtableJSON(opts: {
+  recordId: string;
+  fieldName: string; // field name or fldXXXXXXXX ID
+  buffer: Buffer;
+  filename: string;
+  mime: string;
+}) {
+  const { recordId, fieldName, buffer, filename, mime } = opts;
+  const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
+
+  const safeMime = mime && String(mime).trim() ? mime : "application/octet-stream";
+  const safeName = typeof filename === "string" && filename.trim() ? filename : "attachment";
+  const base64 = Buffer.from(buffer).toString("base64");
+
+  if (process.env.DEBUG_AIRTABLE === "1") {
+    console.error("[Airtable/uploadAttachmentJSON]", { url, recordId, fieldName, filename: safeName, mime: safeMime, size: buffer?.length ?? 0 });
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}`,
+      "Content-Type": "application/json",
+    } as any,
+    body: JSON.stringify({ contentType: safeMime, file: base64, filename: safeName }),
+  });
+
+  if (!res.ok) {
+    const requestId = res.headers.get("x-airtable-request-id") || res.headers.get("x-request-id") || "";
+    const ct = res.headers.get("content-type") || "";
+    const text = await res.text().catch(() => "");
+    let message = text;
+    if (ct.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(text);
+        const errPayload = (parsed as any)?.error ?? parsed;
+        message = JSON.stringify(errPayload);
+      } catch {}
+    }
+    const err: any = new Error(message || "Airtable uploadAttachment failed");
+    err.status = res.status;
+    if (requestId) err.requestId = requestId;
+    err.details = `status=${res.status}${res.statusText ? " " + res.statusText : ""}${requestId ? ` reqId=${requestId}` : ""}`;
+    err.endpoint = url;
+    err.context = { recordId, fieldName, size: buffer?.length ?? 0, mime };
+    throw err;
+  }
+
+  return await res.json();
 }
 
 function sanitizeFilename(name: string) {

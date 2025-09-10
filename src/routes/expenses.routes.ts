@@ -9,7 +9,7 @@ import multer from "multer";
 
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
-import { getCategoriesForProgram } from "../services/categories.service.js";
+// Note: categories enrichment now reads from expense row fields directly
 
 // Resolve a program identifier to its Airtable record ID.
 // Accepts either an actual record id (recXXXXXXXXXXXXXXX) or a textual id.
@@ -104,7 +104,7 @@ const QuerySchema = z.object({
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sort_by: z
-    .enum(["date", "amount", "status", "created_at", "supplier_name"]) 
+    .enum(["date", "amount", "status", "created_at", "supplier_name"])
     .default("date")
     .optional(),
   sort_dir: z.enum(["asc", "desc"]).default("desc").optional(),
@@ -166,22 +166,9 @@ r.get("/", async (req, res, next) => {
         sort_by: base.data.sort_by,
         sort_dir: base.data.sort_dir,
       });
-
-      // Enrich categories: ids -> { id, name }; ensure stable shape even on failure
-      let nameByRecId = new Map<string, string>();
-      try {
-        const cats = await getCategoriesForProgram(pg as string);
-        nameByRecId = new Map<string, string>(cats.map(c => [c.recId, c.name]));
-      } catch (_e) {
-        // leave map empty; we'll still map to objects with empty names
-      }
-      const mapped = result.data.map((row: any) => {
-        const raw = row?.categories;
-        const arr = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
-        const categories = arr.map((cid: string) => ({ id: cid, name: nameByRecId.get(cid) ?? "" }));
-        return { ...row, categories };
-      });
-      return res.json({ ...result, data: mapped });
+      // Map categories from row; if names missing, enrich via categories lookup by record ids
+      const enriched = await enrichCategoriesWithLookup(result.data);
+      return res.json({ ...result, data: enriched });
     }
 
     // Otherwise, filter by both program(s) and user
@@ -199,26 +186,8 @@ r.get("/", async (req, res, next) => {
       requestedPrograms,
     });
 
-    // Enrich categories for multi-program case; keep shape stable on failures
-    // Build a unified map of category recId -> name across relevant program(s)
-    let nameByRecId = new Map<string, string>();
-    try {
-      const programsForCats = requestedPrograms.length ? requestedPrograms : [];
-      const catLists = await Promise.all(programsForCats.map((pid) => getCategoriesForProgram(pid)));
-      nameByRecId = new Map<string, string>();
-      for (const list of catLists) for (const c of list) nameByRecId.set(c.recId, c.name);
-    } catch (_e) {
-      // leave map empty
-    }
-
-    const mapped = result.data.map((row: any) => {
-      const raw = row?.categories;
-      const arr = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
-      const categories = arr.map((cid: string) => ({ id: cid, name: nameByRecId.get(cid) ?? "" }));
-      return { ...row, categories };
-    });
-
-    return res.json({ ...result, data: mapped });
+    const enriched = await enrichCategoriesWithLookup(result.data);
+    return res.json({ ...result, data: enriched });
   } catch (e: any) {
     next(e);
   }
@@ -249,6 +218,7 @@ const CreatePayload = z.object({
     (v) => Array.isArray(v) ? v : (v == null ? [] : [v]),
     z.array(z.string())
   ).optional().default([]),
+  funding_source_id: z.string().optional(),
   bank_name: z.string().optional(),
   bank_branch: z.string().optional(),
   bank_account: z.string().optional(),
@@ -291,6 +261,9 @@ r.post("/", uploadFields, async (req, res, next) => {
     if (typeof raw.bank_branch === "string") payload.bank_branch = raw.bank_branch;
     if (typeof raw.bank_account === "string") payload.bank_account = raw.bank_account;
     if (typeof raw.beneficiary === "string") payload.beneficiary = raw.beneficiary;
+    if (typeof raw.funding_source_id === "string" && raw.funding_source_id.trim()) {
+      payload.funding_source_id = raw.funding_source_id.trim();
+    }
     if (raw.bank_details_file !== undefined) payload.bank_details_file = raw.bank_details_file;
     if (raw.invoice_file !== undefined) payload.invoice_file = raw.invoice_file;
 
@@ -309,17 +282,24 @@ r.post("/", uploadFields, async (req, res, next) => {
 
       if (files?.invoice_file?.[0]) {
         const f = files.invoice_file[0];
-        await svc.uploadAttachmentToAirtable({
-          recordId: created.id, fieldName: "invoice_file",
-          buffer: f.buffer, filename: f.originalname, mime: f.mimetype
+        await svc.uploadAttachmentToAirtableJSON({
+          recordId: created.id,
+          fieldName: "invoice_file",
+          buffer: f.buffer,
+          filename: f.originalname,
+          mime: f.mimetype,
         });
       }
+      console.log("bbb");
 
       if (files?.bank_details_file?.[0]) {
         const f = files.bank_details_file[0];
-        await svc.uploadAttachmentToAirtable({
-          recordId: created.id, fieldName: "bank_details_file",
-          buffer: f.buffer, filename: f.originalname, mime: f.mimetype
+        await svc.uploadAttachmentToAirtableJSON({
+          recordId: created.id,
+          fieldName: "bank_details_file",
+          buffer: f.buffer,
+          filename: f.originalname,
+          mime: f.mimetype,
         });
       }
 
@@ -334,7 +314,99 @@ r.post("/", uploadFields, async (req, res, next) => {
   }
 });
 
+// PATCH /expenses/:id
+const PatchSchema = z.object({
+  program_id: z.string().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  amount: z.coerce.number().optional(),
+  supplier_name: z.string().optional(),
+  business_number: z.string().optional(),
+  invoice_type: z.string().optional(),
+  invoice_description: z.string().optional(),
+  supplier_email: z.string().optional(),
+  status: z.string().optional(),
+  user_id: z.union([z.string(), z.number()]).optional(),
+  categories: z.preprocess(
+    (v) => Array.isArray(v) ? v : (v == null ? undefined : [v]),
+    z.array(z.string())
+  ).optional(),
+  bank_name: z.string().optional(),
+  bank_branch: z.string().optional(),
+  bank_account: z.string().optional(),
+  beneficiary: z.string().optional(),
+  project: z.string().optional(),
+});
+
+r.patch("/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
+    const parsed = PatchSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "validation_error", issues: parsed.error.issues });
+
+    const updated = await svc.updateExpense(id, parsed.data as any);
+    // Return refreshed airtable record fields
+    const refreshed = await svc.getExpenseById(updated.id);
+    return res.json(refreshed || updated);
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default r;
+
+// Build categories from expense row fields without extra program fetches.
+function toArray(v: any): any[] { return Array.isArray(v) ? v : (v == null ? [] : [v]); }
+function categoriesFromRow(row: any): Array<{ id: string; name: string }> {
+
+  const idsRaw = toArray(row?.category_id ?? row?.categories);
+  const namesRaw = toArray(row?.category_name ?? row?.category ?? row?.categories_name);
+  const out: Array<{ id: string; name: string }> = [];
+  const max = Math.max(idsRaw.length, namesRaw.length);
+  for (let i = 0; i < max; i++) {
+    const idVal = idsRaw[i];
+    const nameVal = namesRaw[i];
+    const id = typeof idVal === "object" && idVal?.id ? String(idVal.id) : String(idVal ?? "");
+    let name = "";
+    if (typeof idVal === "object" && idVal?.name) name = String(idVal.name);
+    if (nameVal != null && name === "") name = String(nameVal);
+    out.push({ id, name });
+  }
+  return out.filter((c) => c.id !== "");
+}
+
+// If category names are missing, fetch names by category record ids and fill them in
+async function enrichCategoriesWithLookup(rows: any[]) {
+  const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+  const needed = new Set<string>();
+  const prelim = rows.map((row) => {
+    const cats = categoriesFromRow(row);
+    for (const c of cats) if (!c.name && recIdPattern.test(c.id)) needed.add(c.id);
+    return { row, cats };
+  });
+
+  let nameByRecId = new Map<string, string>();
+  if (needed.size > 0) {
+    // Chunk queries to Airtable if needed (<= 50 per OR to be safe)
+    const allIds = Array.from(needed);
+    const blocks: string[][] = [];
+    for (let i = 0; i < allIds.length; i += 50) blocks.push(allIds.slice(i, i + 50));
+    nameByRecId = new Map<string, string>();
+    for (const block of blocks) {
+      const formula = `OR(${block.map((id) => `RECORD_ID() = "${id}"`).join(',')})`;
+      const recs = await base('categories').select({ filterByFormula: formula, pageSize: 50 }).all();
+      for (const rec of recs) {
+        const nm = String((rec.fields as any)?.name ?? "");
+        nameByRecId.set(rec.id, nm);
+      }
+    }
+  }
+
+  return prelim.map(({ row, cats }) => {
+    const withNames = cats.map((c) => ({ id: c.id, name: c.name || nameByRecId.get(c.id) || "" }));
+    return { ...row, categories: withNames };
+  });
+}
 
 // Helper: normalize Airtable/primitive attachment field to array of { url, filename? }
 function normalizeAttachments(v: any): Array<{ url: string; filename?: string }> {
