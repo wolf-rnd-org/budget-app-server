@@ -248,7 +248,7 @@ export async function listExpensesForUserPrograms(args: {
     const textId = (p.fields as any)?.program_id as string | undefined;
     if (textId) allowedByText.add(textId);
   }
-  let effectiveTargets: Array<{ recId: string; textId: string | undefined }>; 
+  let effectiveTargets: Array<{ recId: string; textId: string | undefined }>;
   if (requestedPrograms.length > 0) {
     const req = new Set(requestedPrograms.map(String));
     effectiveTargets = programs
@@ -353,7 +353,7 @@ export async function listExpensesForUserPrograms(args: {
     priority: (e.priority ?? null) as any,
     program_id: String((e as any).program_id ?? ""),
   }));
-console.log(data.length);
+  console.log(data.length);
 
   return { data, hasMore, totalCount };
 }
@@ -514,7 +514,7 @@ export async function createExpense(input: CreateExpenseInput) {
     beneficiary: input.beneficiary,
     project: input.project,
   };
-  
+
   // // המרה של שמות קטגוריות ל־recIds (אם השדה הוא Link לטבלת categories)
   // const { resolveCategoryLinksByNames } = await import("./categories.service.js");
   // if (Array.isArray(input.categories) && input.categories.length) {
@@ -526,7 +526,7 @@ export async function createExpense(input: CreateExpenseInput) {
   //   }
   // }
 
-  
+
   const bankAtt = toAttachmentArray(input.bank_details_file);
   if (bankAtt.length) fields.bank_details_file = bankAtt;
 
@@ -540,7 +540,6 @@ export async function createExpense(input: CreateExpenseInput) {
       delete fields[k];
     }
   }
-console.log("Creating expense with fields:", fields);
 
   const rec = await base("expenses").create(fields);
   return { id: rec.id, fields: rec.fields };
@@ -761,31 +760,55 @@ export async function queryExpenses(args: {
 }
 
 export async function uploadAttachmentToAirtable(opts: {
-  recordId: string;
-  fieldName: string;              // למשל 'invoice_file'
-  buffer: Buffer;
-  filename: string;
-  mime: string;
-}) {
-  const { recordId, fieldName, buffer, filename, mime } = opts;
-
+  recordId: string; fieldName: string; buffer: Buffer; fileName: string; mime: string, tableName: string
+}) {  
+  const { recordId, fieldName, buffer, fileName, mime, tableName } = opts;
   const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
+  console.log(url);
+  
+// const tableName = "expenses"; // נניח שהטבלה היא expenses
+  // Prepare safer headers for filenames/mime and optional debug
+  const safeMime = mime && String(mime).trim() ? mime : "application/octet-stream";
+  const asciiName = sanitizeFilename(fileName).replace(/[^\x20-\x7E]/g, "_");
+  const filenameStar = encodeURIComponent(fileName);
+  if (process.env.DEBUG_AIRTABLE === "1") {
+     console.error("[Airtable/uploadAttachment]", { url, tableName, recordId, fieldName, fileName, asciiName, mime: safeMime, size: buffer?.length ?? 0 });
+  }
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${process.env.AIRTABLE_TOKEN}`,
-      "Content-Type": mime,
+      "Content-Type": safeMime,
       // Content-Disposition נדרש כדי לשמר שם קובץ בתצוגה
-      "Content-Disposition": `attachment; filename="${sanitizeFilename(filename)}"`,
+      // ASCII fallback + RFC 5987 filename*
+      "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${filenameStar}`,
       "Content-Length": String(buffer.length),
     } as any,
     body: buffer,
   });
 
   if (!res.ok) {
+    const requestId = res.headers.get("x-airtable-request-id") || res.headers.get("x-request-id") || "";
+    const ct = res.headers.get("content-type") || "";
     const text = await res.text().catch(() => "");
-    throw new Error(`Airtable uploadAttachment failed (${res.status}): ${text}`);
+    let message = text;
+    if (ct.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(text);
+        const errPayload = (parsed as any)?.error ?? parsed;
+        message = JSON.stringify(errPayload);
+      } catch {
+        // keep raw text
+      }
+    }
+    const err: any = new Error(message || "Airtable uploadAttachment failed");
+    err.status = res.status;
+    if (requestId) err.requestId = requestId;
+    err.details = `status=${res.status}${res.statusText ? " " + res.statusText : ""}${requestId ? ` reqId=${requestId}` : ""}`;
+    err.endpoint = url;
+    err.context = { tableName, recordId, fieldName, size: buffer?.length ?? 0, mime };
+    throw err;
   }
 
   return await res.json(); // מחזיר metadata של ה־attachments בשדה
