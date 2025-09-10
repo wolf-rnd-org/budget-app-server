@@ -218,6 +218,7 @@ const CreatePayload = z.object({
     (v) => Array.isArray(v) ? v : (v == null ? [] : [v]),
     z.array(z.string())
   ).optional().default([]),
+  funding_source_id: z.string().optional(),
   bank_name: z.string().optional(),
   bank_branch: z.string().optional(),
   bank_account: z.string().optional(),
@@ -260,6 +261,9 @@ r.post("/", uploadFields, async (req, res, next) => {
     if (typeof raw.bank_branch === "string") payload.bank_branch = raw.bank_branch;
     if (typeof raw.bank_account === "string") payload.bank_account = raw.bank_account;
     if (typeof raw.beneficiary === "string") payload.beneficiary = raw.beneficiary;
+    if (typeof raw.funding_source_id === "string" && raw.funding_source_id.trim()) {
+      payload.funding_source_id = raw.funding_source_id.trim();
+    }
     if (raw.bank_details_file !== undefined) payload.bank_details_file = raw.bank_details_file;
     if (raw.invoice_file !== undefined) payload.invoice_file = raw.invoice_file;
 

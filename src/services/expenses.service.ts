@@ -148,6 +148,7 @@ type CreateExpenseInput = {
   supplier_email: string;
   status: "new" | "sent_for_payment" | "paid" | "receipt_uploaded" | "closed";
   categories: string[];
+  funding_source_id?: string;
   bank_name?: string;
   bank_branch?: string;
   bank_account?: string;
@@ -514,6 +515,15 @@ export async function createExpense(input: CreateExpenseInput) {
     beneficiary: input.beneficiary,
     project: input.project,
   };
+
+  // Map client funding_source_id -> Airtable budget_id
+  if (typeof (input as any).funding_source_id === "string") {
+    const fsid = (input as any).funding_source_id.trim();
+    if (fsid) {
+      const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+      fields.budget_id = recIdPattern.test(fsid) ? [fsid] : fsid;
+    }
+  }
 
   // // המרה של שמות קטגוריות ל־recIds (אם השדה הוא Link לטבלת categories)
   // const { resolveCategoryLinksByNames } = await import("./categories.service.js");
