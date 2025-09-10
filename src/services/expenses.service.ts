@@ -814,6 +814,58 @@ export async function uploadAttachmentToAirtable(opts: {
   return await res.json(); // מחזיר metadata של ה־attachments בשדה
 }
 
+// Alternative upload using Airtable's JSON (base64) payload as per docs
+export async function uploadAttachmentToAirtableJSON(opts: {
+  recordId: string;
+  fieldName: string; // field name or fldXXXXXXXX ID
+  buffer: Buffer;
+  filename: string;
+  mime: string;
+}) {
+  const { recordId, fieldName, buffer, filename, mime } = opts;
+  const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
+
+  const safeMime = mime && String(mime).trim() ? mime : "application/octet-stream";
+  const safeName = typeof filename === "string" && filename.trim() ? filename : "attachment";
+  const base64 = Buffer.from(buffer).toString("base64");
+
+  if (process.env.DEBUG_AIRTABLE === "1") {
+    console.error("[Airtable/uploadAttachmentJSON]", { url, recordId, fieldName, filename: safeName, mime: safeMime, size: buffer?.length ?? 0 });
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}`,
+      "Content-Type": "application/json",
+    } as any,
+    body: JSON.stringify({ contentType: safeMime, file: base64, filename: safeName }),
+  });
+
+  if (!res.ok) {
+    const requestId = res.headers.get("x-airtable-request-id") || res.headers.get("x-request-id") || "";
+    const ct = res.headers.get("content-type") || "";
+    const text = await res.text().catch(() => "");
+    let message = text;
+    if (ct.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(text);
+        const errPayload = (parsed as any)?.error ?? parsed;
+        message = JSON.stringify(errPayload);
+      } catch {}
+    }
+    const err: any = new Error(message || "Airtable uploadAttachment failed");
+    err.status = res.status;
+    if (requestId) err.requestId = requestId;
+    err.details = `status=${res.status}${res.statusText ? " " + res.statusText : ""}${requestId ? ` reqId=${requestId}` : ""}`;
+    err.endpoint = url;
+    err.context = { recordId, fieldName, size: buffer?.length ?? 0, mime };
+    throw err;
+  }
+
+  return await res.json();
+}
+
 function sanitizeFilename(name: string) {
   // שמירה פשוטה – להימנע מציטוטים ותווים בעייתיים
   return name.replace(/[\r\n"]/g, "_");

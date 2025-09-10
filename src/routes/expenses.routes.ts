@@ -278,26 +278,24 @@ r.post("/", uploadFields, async (req, res, next) => {
 
       if (files?.invoice_file?.[0]) {
         const f = files.invoice_file[0];
-        await svc.uploadAttachmentToAirtable({
-          tableName: "expenses",
+        await svc.uploadAttachmentToAirtableJSON({
           recordId: created.id,
           fieldName: "invoice_file",
           buffer: f.buffer,
-          fileName: f.originalname,
-          mime: f.mimetype
+          filename: f.originalname,
+          mime: f.mimetype,
         });
       }
       console.log("bbb");
 
       if (files?.bank_details_file?.[0]) {
         const f = files.bank_details_file[0];
-        await svc.uploadAttachmentToAirtable({
-          tableName: "expenses",
+        await svc.uploadAttachmentToAirtableJSON({
           recordId: created.id,
           fieldName: "bank_details_file",
           buffer: f.buffer,
-          fileName: f.originalname,
-          mime: f.mimetype
+          filename: f.originalname,
+          mime: f.mimetype,
         });
       }
 
