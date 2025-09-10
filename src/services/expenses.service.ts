@@ -545,6 +545,57 @@ console.log("Creating expense with fields:", fields);
   const rec = await base("expenses").create(fields);
   return { id: rec.id, fields: rec.fields };
 }
+
+export type UpdateExpenseInput = Partial<{
+  program_id: string;            // rec id or text id (we'll keep as-is if rec id)
+  date: string;
+  amount: number;
+  supplier_name: string;
+  business_number: string;
+  invoice_type: string;
+  invoice_description: string;
+  supplier_email: string;
+  status: string;
+  user_id: string | number;
+  categories: string[];          // array of category record ids
+  bank_name: string;
+  bank_branch: string;
+  bank_account: string;
+  beneficiary: string;
+  project: string;
+}>;
+
+export async function updateExpense(recordId: string, input: UpdateExpenseInput) {
+  const fields: Record<string, any> = {};
+  // Only include provided keys
+  if (input.program_id) fields.program_id = [input.program_id];
+  if (input.date !== undefined) fields.date = input.date;
+  if (input.amount !== undefined) fields.amount = input.amount;
+  if (input.supplier_name !== undefined) fields.supplier_name = input.supplier_name;
+  if (input.business_number !== undefined) fields.business_number = input.business_number;
+  if (input.invoice_type !== undefined) fields.invoice_type = input.invoice_type;
+  if (input.invoice_description !== undefined) fields.invoice_description = input.invoice_description;
+  if (input.supplier_email !== undefined) fields.supplier_email = input.supplier_email;
+  if (input.status !== undefined) fields.status = normalizeStatus(input.status);
+  if (input.user_id !== undefined) fields.user_id = String(input.user_id ?? "");
+  if (Array.isArray(input.categories)) fields.categories = input.categories;
+  if (input.bank_name !== undefined) fields.bank_name = input.bank_name;
+  if (input.bank_branch !== undefined) fields.bank_branch = input.bank_branch;
+  if (input.bank_account !== undefined) fields.bank_account = input.bank_account;
+  if (input.beneficiary !== undefined) fields.beneficiary = input.beneficiary;
+  if (input.project !== undefined) fields.project = input.project;
+
+  // Clean undefined/empty (except allow empty string to clear text fields if desired)
+  for (const k of Object.keys(fields)) {
+    const v = fields[k];
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0)) {
+      delete fields[k];
+    }
+  }
+
+  const rec = await base("expenses").update(recordId, fields);
+  return { id: rec.id, fields: rec.fields };
+}
 export async function queryExpenses(args: {
   auth: { userId: number; actions: string[]; programIds: string[] };
   params: {
