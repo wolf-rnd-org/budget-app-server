@@ -86,6 +86,7 @@ export async function getExpenses (
   const fieldsToReturn = [
     "expense_id",
     "budget_id",
+    "funding_source_id"
     "program_id",
     "date",
     "categories",

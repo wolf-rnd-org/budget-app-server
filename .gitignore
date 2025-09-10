@@ -10,7 +10,8 @@ upload
 dist/
 build/
 .tmp/
-
+.upload
+./upload
 # Env
 .env
 .env.local

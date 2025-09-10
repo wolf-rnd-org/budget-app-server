@@ -2,35 +2,104 @@
 import { base } from "../utils/airtableConfig.js";
 
 
-// NEW: שליפה לפי פרויקט (program)
-async function findProgramRecIdById(programId: string) {
-  const page = await base("programs").select({
-    pageSize: 1,
-    maxRecords: 1,
+// Convert program_id (autonumber) to Airtable record ID
+async function findProgramRecIdById(programId: string): Promise<string | null> {
+  const pid = String(programId || "").trim();
+  console.log('Looking for program with program_id:', pid);
 
-    filterByFormula: `{program_id} = "${programId}"`
-  }).firstPage();
-  return page[0]?.id ?? null;
+  if (!pid) return null;
+
+  // If it's already a record ID format, return as-is
+  if (/^rec[0-9A-Za-z]{14}$/i.test(pid)) {
+    console.log('Already a record ID:', pid);
+    return pid;
+  }
+
+  try {
+    // Escape quotes in the program ID for the formula
+    const escapedPid = pid.replace(/"/g, '\\"');
+    const formula = `{program_id} = "${escapedPid}"`;
+    console.log('Using formula to find program:', formula);
+
+    const records = await base("programs").select({
+      pageSize: 1,
+      maxRecords: 1,
+      filterByFormula: formula
+    }).firstPage();
+
+    const recordId = records[0]?.id ?? null;
+    console.log('Found program record ID:', recordId);
+    return recordId;
+  } catch (error) {
+    console.error('Error finding program record ID:', error);
+    return null;
+  }
 }
 
 export async function getCategoriesForProgram(programKey: string) {
+  console.log('getCategoriesForProgram called with programKey:', programKey);
+
   const pid = String(programKey || "").trim();
   if (!pid) return [];
 
-  // סינון לפי הערך המוצג בשדה הקישור (המספרים 1/12/82)
-  const formula = `FIND("," & "${pid}" & ",", "," & ARRAYJOIN({program_ids}, ",") & ",")`;
-  const recs = await base("categories").select({
-    pageSize: 100,
-    filterByFormula: formula,
-    fields: ["category_id", "name", "program_ids"],
-    sort: [{ field: "name", direction: "asc" }],
-  }).all();
+  try {
+    // Get the program record by program_id (autonumber) and fetch its linked categories
+    const escapedPid = pid.replace(/"/g, '\\"');
+    const formula = `{program_id} = "${escapedPid}"`;
 
-  return recs.map(r => ({
-    recId: r.id,
-    category_id: String(r.get("category_id") ?? ""),
-    name: String(r.get("name") ?? ""),
-  }));
+    const programRecords = await base("programs").select({
+      pageSize: 1,
+      maxRecords: 1,
+      filterByFormula: formula,
+      fields: ["program_id", "categories"] // Assuming categories is a linked field to categories table
+    }).firstPage();
+
+    if (programRecords.length === 0) {
+      console.log('No program found for program_id:', pid);
+      return [];
+    }
+
+    const program = programRecords[0];
+    const linkedCategories = program.get("categories");
+    console.log('Found linked categories:', linkedCategories);
+
+    if (!linkedCategories || !Array.isArray(linkedCategories)) {
+      console.log('No categories linked to this program');
+      return [];
+    }
+
+    // Get the category details for all linked categories
+    const categoryRecordIds = linkedCategories.map(cat =>
+      typeof cat === 'string' ? cat : cat.id
+    );
+
+    if (categoryRecordIds.length === 0) {
+      return [];
+    }
+
+    // Fetch category details
+    const categoryFormula = `OR(${categoryRecordIds.map(id => `RECORD_ID() = "${id}"`).join(',')})`;
+    console.log('Fetching categories with formula:', categoryFormula);
+
+    const categoryRecords = await base("categories").select({
+      pageSize: 100,
+      filterByFormula: categoryFormula,
+      fields: ["category_id", "name"],
+      sort: [{ field: "name", direction: "asc" }],
+    }).all();
+
+    console.log('Found category records:', categoryRecords.length);
+
+    return categoryRecords.map(r => ({
+      recId: r.id,
+      category_id: String(r.get("category_id") ?? ""),
+      name: String(r.get("name") ?? ""),
+    }));
+
+  } catch (error) {
+    console.error('Error in getCategoriesForProgram:', error);
+    return [];
+  }
 }
 
 export async function resolveCategoryLinksByNames(programRecId: string, names: string[]) {
