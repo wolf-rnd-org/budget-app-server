@@ -3,15 +3,14 @@ import { listFundingSources } from "../services/fundingSources.service.js";
 
 const r = Router();
 
-// app.use("/budgets/funding-sources", r)
-r.get("/", async (req, res) => {
+// GET /funding-sources  → רשימת תקציבים של השנה הנוכחית
+r.get("/", async (_req, res) => {
   try {
-    const programId = (req.query.program_id as string | undefined)?.trim();
-    const items = await listFundingSources(programId);
+    const items = await listFundingSources();
     res.json(items);
   } catch (err: any) {
     console.error("funding-sources failed:", err);
-    res.status(500).json({ error: "Failed to fetch funding sources" });
+    res.status(500).json({ error: err?.message ?? "Server error" });
   }
 });
 
