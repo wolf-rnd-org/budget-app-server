@@ -645,7 +645,7 @@ export async function createExpense(input: CreateExpenseInput) {
     bank_branch: input.bank_branch,
     bank_account: input.bank_account,
     beneficiary: input.beneficiary,
-    project: input.project,
+    // project: input.project,
   };
 
   // Map client funding_source_id -> Airtable funding_source_id
@@ -726,7 +726,7 @@ export async function updateExpense(recordId: string, input: UpdateExpenseInput)
   if (input.bank_branch !== undefined) fields.bank_branch = input.bank_branch;
   if (input.bank_account !== undefined) fields.bank_account = input.bank_account;
   if (input.beneficiary !== undefined) fields.beneficiary = input.beneficiary;
-  if (input.project !== undefined) fields.project = input.project;
+  // if (input.project !== undefined) fields.project = input.project;
 
   // Clean undefined/empty (except allow empty string to clear text fields if desired)
   for (const k of Object.keys(fields)) {
