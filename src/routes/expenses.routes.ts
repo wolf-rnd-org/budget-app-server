@@ -3,6 +3,7 @@ import { Router } from "express";
 import * as svc from "../services/expenses.service.js";
 import { listExpensesForProgram } from "../services/expenses.service.js";
 import { listExpensesForUserPrograms } from "../services/expenses.service.js";
+import { listAllExpenses } from "../services/expenses.service.js";
 import { z } from "zod";
 import multer from "multer";
 
@@ -74,13 +75,32 @@ async function findCategoryRecIdsByNames(tokens: string[], programRecId: string)
   }
 
   const out: string[] = [];
+  const invalidTokens: string[] = [];
+
   for (const t of tokens) {
     const tok = String(t ?? "").trim();
     if (!tok) continue;
-    if (recIdPattern.test(tok)) { if (validRecIds.has(tok)) out.push(tok); continue; }
+    if (recIdPattern.test(tok)) {
+      if (validRecIds.has(tok)) {
+        out.push(tok);
+      } else {
+        invalidTokens.push(tok);
+      }
+      continue;
+    }
     const viaId = byAutoId.get(tok);
-    if (viaId) { out.push(viaId); continue; }
+    if (viaId) {
+      out.push(viaId);
+    } else {
+      invalidTokens.push(tok);
+    }
   }
+
+  // Log invalid tokens for debugging
+  if (invalidTokens.length > 0) {
+    console.log('Invalid category tokens that need to be added to Airtable:', invalidTokens);
+  }
+
   return out;
 }
 
@@ -90,6 +110,67 @@ function badRequest(details: Record<string, string>) {
 }
 
 const emptyToUndef = (v: unknown) => (v === "" ? undefined : v);
+
+// Helper function for status progression
+function getNextStatus(currentStatus: string): string {
+  const statusFlow = {
+    "new": "sent_for_payment",
+    "sent_for_payment": "paid",
+    "paid": "receipt_uploaded",
+    "receipt_uploaded": "closed",
+    "closed": "closed" // Already at final status
+  };
+
+  return statusFlow[currentStatus as keyof typeof statusFlow] || currentStatus;
+}
+
+// Helper functions for permission handling
+function parseUserActions(userActionsJson?: string): string[] {
+  if (!userActionsJson) return [];
+  try {
+    const parsed = JSON.parse(userActionsJson);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (error) {
+    console.error('Failed to parse user_actions:', error);
+    return [];
+  }
+}
+
+function hasPermission(userActions: string[], permission: string): boolean {
+  return userActions.includes(permission);
+}
+
+function validatePermissions(userActions: string[], userId?: number, programIds?: string[]): {
+  isValid: boolean;
+  accessLevel: 'admin' | 'program_manager' | 'user';
+  allowedPrograms?: string[];
+} {
+  // Admin access - can see all expenses from all programs and users
+  // No program_id required for admin
+  if (hasPermission(userActions, 'expenses.admin.view')) {
+    return { isValid: true, accessLevel: 'admin' };
+  }
+
+  // Program manager access - can see all expenses within specific programs
+  // If no user_id provided but has expenses.view, treat as program manager
+  if (hasPermission(userActions, 'expenses.view')) {
+    if (!programIds || programIds.length === 0) {
+      return { isValid: false, accessLevel: 'program_manager' };
+    }
+    return {
+      isValid: true,
+      accessLevel: 'program_manager',
+      allowedPrograms: programIds
+    };
+  }
+
+  // Regular user access - can only see their own expenses
+  if (userId) {
+    return { isValid: true, accessLevel: 'user' };
+  }
+
+  return { isValid: false, accessLevel: 'user' };
+}
 
 
 const QuerySchema = z.object({
@@ -110,9 +191,11 @@ const QuerySchema = z.object({
   sort_dir: z.enum(["asc", "desc"]).default("desc").optional(),
   // Treat empty program_id as undefined; at least one program_id is required overall
   program_id: z.preprocess(emptyToUndef, z.string().optional()),
+  // New: user actions for permission-based filtering
+  user_actions: z.preprocess(emptyToUndef, z.string().optional()),
 });
 
-// GET /expenses?program_id=...
+// GET /expenses with permission-based filtering
 r.get("/", async (req, res, next) => {
   try {
     // Parse base params
@@ -125,6 +208,10 @@ r.get("/", async (req, res, next) => {
       }
       return res.status(400).json(badRequest(details));
     }
+
+    // Parse user actions for permission checking
+    const userActions = parseUserActions(base.data.user_actions);
+    console.log('User actions:', userActions);
 
     // Handle union of program_id and program_id[]
     const arrayParam = (req.query["program_id[]"] ?? req.query["program_id"]);
@@ -143,52 +230,157 @@ r.get("/", async (req, res, next) => {
       });
     }
 
-    // Require at least one program id
-    if (!requestedPrograms.length) {
-      return res.status(400).json({ error: "validation_error", message: "program_id is required" });
-    }
+    // Validate permissions and determine access level
+    const permissionCheck = validatePermissions(userActions, base.data.user_id, requestedPrograms);
 
-    // If user_id is not provided, return all expenses for the program only
-    if (base.data.user_id === undefined) {
-      if (requestedPrograms.length > 1) {
-        return res.status(400).json({ error: "validation_error", message: "Provide a single program_id when user_id is omitted" });
-      }
-      const pg = requestedPrograms[0]!;
-      const result = await listExpensesForProgram({
-        program: pg as string,
-        page: base.data.page,
-        pageSize: base.data.pageSize,
-        q: base.data.q,
-        status: base.data.status,
-        priority: base.data.priority,
-        date_from: base.data.date_from,
-        date_to: base.data.date_to,
-        sort_by: base.data.sort_by,
-        sort_dir: base.data.sort_dir,
+    if (!permissionCheck.isValid) {
+      return res.status(403).json({
+        error: "forbidden",
+        message: "Insufficient permissions to access expenses"
       });
-      // Map categories from row; if names missing, enrich via categories lookup by record ids
-      const enriched = await enrichCategoriesWithLookup(result.data);
-      return res.json({ ...result, data: enriched });
     }
 
-    // Otherwise, filter by both program(s) and user
-    const result = await listExpensesForUserPrograms({
-      userId: base.data.user_id,
-      page: base.data.page,
-      pageSize: base.data.pageSize,
-      q: base.data.q,
-      status: base.data.status,
-      priority: base.data.priority,
-      date_from: base.data.date_from,
-      date_to: base.data.date_to,
-      sort_by: base.data.sort_by,
-      sort_dir: base.data.sort_dir,
-      requestedPrograms,
-    });
+    console.log('Permission check result:', permissionCheck);
 
+    // For non-admin users, require program_id
+    if (permissionCheck.accessLevel !== 'admin' && requestedPrograms.length === 0) {
+      return res.status(400).json({
+        error: "validation_error",
+        message: "program_id is required for non-admin users"
+      });
+    }
+
+    let result;
+
+    switch (permissionCheck.accessLevel) {
+      case 'admin':
+        // Admin can see ALL expenses from ALL programs and users
+        console.log('Admin access: fetching all expenses');
+
+        result = await listAllExpenses({
+          page: base.data.page,
+          pageSize: base.data.pageSize,
+          q: base.data.q,
+          status: base.data.status,
+          priority: base.data.priority,
+          date_from: base.data.date_from,
+          date_to: base.data.date_to,
+          sort_by: base.data.sort_by,
+          sort_dir: base.data.sort_dir,
+        });
+        break;
+
+      case 'program_manager':
+        // Program manager can see all expenses within their allowed programs
+        console.log('Program manager access: fetching expenses for programs:', permissionCheck.allowedPrograms);
+        console.log('User ID provided:', base.data.user_id);
+
+        if (!permissionCheck.allowedPrograms || permissionCheck.allowedPrograms.length === 0) {
+          return res.status(403).json({
+            error: "forbidden",
+            message: "No programs authorized for this user"
+          });
+        }
+
+        // Ensure requested programs are within allowed programs
+        const unauthorizedPrograms = requestedPrograms.filter(p =>
+          !permissionCheck.allowedPrograms!.includes(p)
+        );
+
+        if (unauthorizedPrograms.length > 0) {
+          return res.status(403).json({
+            error: "forbidden",
+            message: `Access denied to programs: ${unauthorizedPrograms.join(', ')}`
+          });
+        }
+
+        if (requestedPrograms.length === 1) {
+          // If user_id is provided, filter by user within the program
+          // If no user_id, return ALL expenses for the program
+          if (base.data.user_id) {
+            console.log('Fetching expenses for specific user within program');
+            result = await listExpensesForUserPrograms({
+              userId: base.data.user_id,
+              page: base.data.page,
+              pageSize: base.data.pageSize,
+              q: base.data.q,
+              status: base.data.status,
+              priority: base.data.priority,
+              date_from: base.data.date_from,
+              date_to: base.data.date_to,
+              sort_by: base.data.sort_by,
+              sort_dir: base.data.sort_dir,
+              requestedPrograms,
+            });
+          } else {
+            console.log('Fetching ALL expenses for program (no user filter)');
+            result = await listExpensesForProgram({
+              program: requestedPrograms[0],
+              page: base.data.page,
+              pageSize: base.data.pageSize,
+              q: base.data.q,
+              status: base.data.status,
+              priority: base.data.priority,
+              date_from: base.data.date_from,
+              date_to: base.data.date_to,
+              sort_by: base.data.sort_by,
+              sort_dir: base.data.sort_dir,
+            });
+          }
+        } else {
+          return res.status(400).json({
+            error: "validation_error",
+            message: "Multiple program support not yet implemented"
+          });
+        }
+        break;
+
+      case 'user':
+        // Regular user can only see their own expenses
+        console.log('User access: fetching expenses for user:', base.data.user_id);
+
+        if (!base.data.user_id) {
+          return res.status(400).json({
+            error: "validation_error",
+            message: "user_id is required for regular users"
+          });
+        }
+
+        if (requestedPrograms.length === 0) {
+          return res.status(400).json({
+            error: "validation_error",
+            message: "program_id is required"
+          });
+        }
+
+        result = await listExpensesForUserPrograms({
+          userId: base.data.user_id,
+          page: base.data.page,
+          pageSize: base.data.pageSize,
+          q: base.data.q,
+          status: base.data.status,
+          priority: base.data.priority,
+          date_from: base.data.date_from,
+          date_to: base.data.date_to,
+          sort_by: base.data.sort_by,
+          sort_dir: base.data.sort_dir,
+          requestedPrograms,
+        });
+        break;
+
+      default:
+        return res.status(403).json({
+          error: "forbidden",
+          message: "Invalid access level"
+        });
+    }
+
+    // Enrich categories and return result
     const enriched = await enrichCategoriesWithLookup(result.data);
     return res.json({ ...result, data: enriched });
+
   } catch (e: any) {
+    console.error('Error in expenses GET endpoint:', e);
     next(e);
   }
 });
@@ -276,7 +468,59 @@ r.post("/", uploadFields, async (req, res, next) => {
     }
 
     // 4) שמירה
-    const created = await svc.createExpense(payload);
+    let created;
+    try {
+      created = await svc.createExpense(payload);
+    } catch (error: any) {
+      // Handle Airtable select option errors
+      if (error?.error === 'INVALID_MULTIPLE_CHOICE_OPTIONS') {
+        console.log('Invalid select option detected:', error.message);
+        console.log('Full payload that caused the error:', JSON.stringify(payload, null, 2));
+
+        // Try different strategies to identify and fix the issue
+        const strategies: Array<() => any> = [
+          // Strategy 1: Remove categories
+          () => ({ ...payload, categories: [] }),
+          // Strategy 2: Remove status (in case it's a custom status)
+          () => ({ ...payload, status: 'new' }),
+          // Strategy 3: Remove invoice_type if it might be a select field
+          () => ({ ...payload, invoice_type: '' }),
+          // Strategy 4: Remove all potentially problematic fields
+          () => ({
+            ...payload,
+            categories: [],
+            status: 'new',
+            invoice_type: '',
+            project: ''
+          })
+        ];
+
+        for (let i = 0; i < strategies.length; i++) {
+          try {
+            console.log(`Trying strategy ${i + 1}...`);
+            const strategy = strategies[i];
+            if (strategy) {
+              const modifiedPayload = strategy();
+              created = await svc.createExpense(modifiedPayload);
+              console.log(`Strategy ${i + 1} succeeded`);
+              break;
+            }
+          } catch (retryError: any) {
+            console.log(`Strategy ${i + 1} failed:`, retryError.message);
+            if (i === strategies.length - 1) {
+              // If all strategies fail, throw the original error
+              throw error;
+            }
+          }
+        }
+
+        if (!created) {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
     if (req.files && created?.id) {
       const files = req.files as Record<string, Express.Multer.File[] | undefined>;
 
@@ -309,6 +553,7 @@ r.post("/", uploadFields, async (req, res, next) => {
     }
     return res.status(201).json(created);
   } catch (e: any) {
+    console.log("invlid result");
     if (e?.issues) return res.status(422).json({ error: "Validation failed", issues: e.issues });
     next(e);
   }
@@ -348,6 +593,42 @@ r.patch("/:id", async (req, res, next) => {
     // Return refreshed airtable record fields
     const refreshed = await svc.getExpenseById(updated.id);
     return res.json(refreshed || updated);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// POST /expenses/:id/advance-status - Advance expense to next status
+r.post("/:id/status", async (req, res, next) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
+
+    // Get current expense to check its current status
+    const currentExpense = await svc.getExpenseById(id);
+    const currentStatus = String(currentExpense.fields?.status || "new");
+
+    console.log('Current status:', currentStatus);
+
+    // Advance to next status
+    const nextStatus = getNextStatus(currentStatus);
+    console.log('Advancing status from', currentStatus, 'to', nextStatus);
+
+    // Update only the status
+    const updated = await svc.updateExpense(id, { status: nextStatus });
+
+    // Return refreshed expense with new status
+    const refreshed = await svc.getExpenseById(updated.id);
+
+    return res.json({
+      success: true,
+      message: `Status advanced from '${currentStatus}' to '${nextStatus}'`,
+      data: refreshed || updated,
+      statusChange: {
+        from: currentStatus,
+        to: nextStatus
+      }
+    });
   } catch (e) {
     next(e);
   }

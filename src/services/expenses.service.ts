@@ -69,6 +69,134 @@ export async function getExpenseById(recordId: string) {
   return { id: rec.id, fields: rec.fields };
 }
 
+// New function for admin users to get ALL expenses
+export async function listAllExpenses(args: {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  q?: string | undefined;
+  status?: string | undefined;
+  priority?: "urgent" | "normal" | undefined;
+  date_from?: string | undefined;
+  date_to?: string | undefined;
+  sort_by?: "date" | "amount" | "status" | "created_at" | "supplier_name" | undefined;
+  sort_dir?: "asc" | "desc" | undefined;
+}) {
+  const {
+    page = 1,
+    pageSize = 20,
+    q,
+    status,
+    priority,
+    date_from,
+    date_to,
+    sort_by = "date",
+    sort_dir = "desc",
+  } = args;
+
+  // Fetch ALL expenses from Airtable without any program or user filtering
+  const allRows: AirtableRow[] = [];
+  await base("expenses")
+    .select({
+      pageSize: 100, // Internal page size for Airtable API
+    })
+    .eachPage((records, fetchNextPage) => {
+      for (const rec of records) {
+        allRows.push({ id: rec.id, ...rec.fields });
+      }
+      fetchNextPage();
+    });
+
+  // Apply filters
+  let filtered = allRows;
+  if (status) filtered = filtered.filter((e: any) => String(e.status ?? "") === status);
+  if (priority) filtered = filtered.filter((e: any) => (e.priority ?? null) === priority);
+  if (date_from || date_to) {
+    filtered = filtered.filter((e: any) => {
+      const d = String(e.date ?? "");
+      if (date_from && d < date_from) return false;
+      if (date_to && d > date_to) return false;
+      return true;
+    });
+  }
+  if (q) {
+    const needle = q.toLowerCase();
+    filtered = filtered.filter((e: any) => {
+      const hay = [
+        String(e.invoice_description ?? ""),
+        String(e.supplier_name ?? ""),
+        String(e.project ?? ""),
+        String((e as any).invoice_number ?? ""),
+      ].join("\n").toLowerCase();
+      return hay.includes(needle);
+    });
+  }
+
+  // Sorting
+  const dir = sort_dir === "asc" ? 1 : -1;
+  const by = sort_by;
+  filtered.sort((a: any, b: any) => {
+    let av: any;
+    let bv: any;
+    switch (by) {
+      case "supplier_name":
+        av = String(a.supplier_name ?? "");
+        bv = String(b.supplier_name ?? "");
+        break;
+      case "amount":
+        av = Number(a.amount ?? 0);
+        bv = Number(b.amount ?? 0);
+        break;
+      case "status":
+        av = String(a.status ?? "");
+        bv = String(b.status ?? "");
+        break;
+      case "created_at":
+        av = String((a as any).created_at ?? a.date ?? "");
+        bv = String((b as any).created_at ?? b.date ?? "");
+        break;
+      case "date":
+      default:
+        av = String(a.date ?? "");
+        bv = String(b.date ?? "");
+        break;
+    }
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+
+  const totalCount = filtered.length;
+  const start = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
+  const rows = filtered.slice(start, start + Math.max(1, pageSize));
+  const hasMore = start + rows.length < totalCount;
+
+  const data = rows.map((e: any) => ({
+    id: String(e.id),
+    budget: Number(e.budget ?? 0),
+    project: String(e.project ?? ""),
+    date: String(e.date ?? ""),
+    categories: Array.isArray(e.categories) ? e.categories : String(e.categories ?? ""),
+    amount: Number(e.amount ?? 0),
+    invoice_description: String(e.invoice_description ?? ""),
+    supplier_name: String(e.supplier_name ?? ""),
+    invoice_file: toAttachmentArray((e as any).invoice_file),
+    business_number: String(e.business_number ?? ""),
+    invoice_type: String(e.invoice_type ?? ""),
+    bank_name: String((e as any).bank_name ?? ""),
+    bank_branch: String((e as any).bank_branch ?? ""),
+    bank_account: String((e as any).bank_account ?? ""),
+    bank_details_file: toAttachmentArray((e as any).bank_details_file),
+    supplier_email: e.supplier_email ? String(e.supplier_email) : null,
+    status: String(e.status ?? ""),
+    user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
+    priority: (e.priority ?? null) as any,
+    program_id: String((e as any).program_id ?? ""),
+    program_name: String((e as any).program_name ?? ""),
+  }));
+
+  return { data, hasMore, totalCount };
+}
+
 export async function getExpenses(
   programId: string,
   page: number = 1,
@@ -194,6 +322,8 @@ function toAttachmentArray(v: any): Array<{ url: string; filename?: string }> {
   if (typeof v === "object" && v.url) return [v];
   return [];
 }
+
+
 const ALLOWED_STATUS = new Set([
   "new",
   "sent_for_payment",
@@ -353,6 +483,7 @@ export async function listExpensesForUserPrograms(args: {
     user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
     priority: (e.priority ?? null) as any,
     program_id: String((e as any).program_id ?? ""),
+    program_name: String((e as any).program_name ?? ""),
   }));
   console.log(data.length);
 
@@ -491,6 +622,7 @@ export async function listExpensesForProgram(args: {
     user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
     priority: (e.priority ?? null) as any,
     program_id: String((e as any).program_id ?? ""),
+    program_name: String((e as any).program_name ?? ""),
   }));
 
   return { data, hasMore, totalCount };
@@ -516,12 +648,14 @@ export async function createExpense(input: CreateExpenseInput) {
     project: input.project,
   };
 
-  // Map client funding_source_id -> Airtable budget_id
+  // Map client funding_source_id -> Airtable funding_source_id
   if (typeof (input as any).funding_source_id === "string") {
     const fsid = (input as any).funding_source_id.trim();
     if (fsid) {
       const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+      // fields.funding_source_id = recIdPattern.test(fsid) ? [fsid] : fsid;
       fields.budget_id = recIdPattern.test(fsid) ? [fsid] : fsid;
+      // fields.funding_source_id = recIdPattern.test(fsid) ? [fsid] : fsid;
     }
   }
 
@@ -763,6 +897,7 @@ export async function queryExpenses(args: {
     user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
     priority: (e.priority ?? null) as any,
     program_id: (e as any).program_id ? String((e as any).program_id) : "",
+    program_name: String((e as any).program_name ?? ""),
   }));
 
   const hasMore = start + data.length < totalCount;
