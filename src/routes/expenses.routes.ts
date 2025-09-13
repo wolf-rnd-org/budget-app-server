@@ -582,6 +582,11 @@ const PatchSchema = z.object({
   project: z.string().optional(),
 });
 
+// Schema for status update
+const StatusUpdateSchema = z.object({
+  status: z.enum(["new", "sent_for_payment", "paid", "receipt_uploaded", "closed"]),
+});
+
 r.patch("/:id", async (req, res, next) => {
   try {
     const id = String(req.params.id || "").trim();
@@ -598,21 +603,45 @@ r.patch("/:id", async (req, res, next) => {
   }
 });
 
-// POST /expenses/:id/advance-status - Advance expense to next status
-r.post("/:id/status", async (req, res, next) => {
+// PATCH /expenses/:id/status - Advance expense to next status
+r.patch("/:id/status", async (req, res, next) => {
   try {
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
+
+    // Validate request body
+    const parsed = StatusUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "validation_error",
+        message: "Invalid status provided",
+        issues: parsed.error.issues
+      });
+    }
+
+    const requestedStatus = parsed.data.status;
 
     // Get current expense to check its current status
     const currentExpense = await svc.getExpenseById(id);
     const currentStatus = String(currentExpense.fields?.status || "new");
 
     console.log('Current status:', currentStatus);
+    console.log('Requested status:', requestedStatus);
 
-    // Advance to next status
+    // Server manages the flow - always advance to next status
+    // Client sends current status, server advances to next step
     const nextStatus = getNextStatus(currentStatus);
-    console.log('Advancing status from', currentStatus, 'to', nextStatus);
+    console.log('Server advancing status from', currentStatus, 'to', nextStatus);
+
+    // Validate that client sent the correct current status
+    if (requestedStatus !== currentStatus) {
+      return res.status(400).json({
+        error: "status_mismatch",
+        message: `Status mismatch. Expected current status '${currentStatus}', but received '${requestedStatus}'`,
+        currentStatus: currentStatus,
+        expectedStatus: currentStatus
+      });
+    }
 
     // Update only the status
     const updated = await svc.updateExpense(id, { status: nextStatus });
