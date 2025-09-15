@@ -750,3 +750,27 @@ r.get("/:id/files/:field/:index", async (req, res, next) => {
     next(e);
   }
 });
+
+r.delete("/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
+    await svc.deleteExpense(id);
+    return res.status(204).send();
+  } catch (e:any) {
+    if (e?.status === 404) return res.status(404).json({ error: "not_found", message: "Expense not found" });
+    next(e);
+  }
+});
+
+r.get("/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
+    const rec = await svc.getExpenseById(id);
+    const enriched = await enrichCategoriesWithLookup([rec.fields]);
+    return res.json({ id: rec.id, ...enriched[0] });
+  } catch (e) {
+    next(e);
+  }
+});
