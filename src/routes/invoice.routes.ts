@@ -352,7 +352,7 @@ const BASE_PROMPT = `
 {
   "supplier_name": string | null,
   "business_number": string | null,
-  "invoice_type": string | null,            // דוג': "חשבונית מס" | "חשבון עסקה" | "קבלה" | ...
+  "invoice_type": string | null,            // דוג': "חשבונית מס" | "חשבונית עסקה" | "דרישת תשלום" | "קבלה" | "חשבונית זיכוי"
   "invoice_description": string | null,     // רק טקסט שקיים במסמך, 5–120 תווים
   "amount": number | null,                  // סכום כולל לתשלום
   "project": string | null,
@@ -386,6 +386,10 @@ const BASE_PROMPT = `
 - "status" = "ready" רק אם supplier_name + date + amount זוהו תקינים; אחרת null.
 - פורמט מספרים: amount כמספר (לא כמחרוזת).
 - אין טקסט חופשי מחוץ ל-JSON. להחזיר אובייקט JSON אחד בלבד.
+- לשדה "invoice_type" החזר אחת מהאפשרויות הקבועות בלבד:
+  ["חשבונית מס","חשבונית עסקה","דרישת תשלום","קבלה","חשבונית זיכוי"].
+- אם מופיעה וריאציה/איות אחר (למשל "חשבונית מס/קבלה", "חשבון עסקה", "חשבונית זקוי"):
+  בחרי את ההתאמה הקרובה ביותר מהרשימה למעלה.
 `;
 
 
@@ -617,9 +621,14 @@ router.post(
             function normalizeInvoiceType(s?: string): string {
                 if (!s) return "";
                 const t = s.trim();
-                if (/חשבונית\s*מס/i.test(t)) return "חשבונית מס";
-                if (/חשבונ(ית)?\s*עסקה/i.test(t) || /חשבונית\s*עסקה/i.test(t) || /עסקה/i.test(t)) return "חשבון עסקה";
+
+                // וריאנטים נפוצים
+                if (/חשבונית\s*מס(?:\s*\/?\s*קבלה)?/i.test(t)) return "חשבונית מס";   // כולל "חשבונית מס/קבלה"
+                if (/חשבונ(ית)?\s*עסקה|חשבונית\s*עסקה|עסקה/i.test(t)) return "חשבונית עסקה";
+                if (/דריש(ת)?\s*תשלום|דרישה\s*לתשלום/i.test(t)) return "דרישת תשלום";
                 if (/קבלה/i.test(t)) return "קבלה";
+                if (/חשבונית\s*זיכוי|זיכוי\s*חשבונית/i.test(t)) return "חשבונית זיכוי";
+
                 return t;
             }
 

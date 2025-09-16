@@ -1015,3 +1015,7 @@ function sanitizeFilename(name: string) {
   // שמירה פשוטה – להימנע מציטוטים ותווים בעייתיים
   return name.replace(/[\r\n"]/g, "_");
 }
+
+export async function deleteExpense(recordId: string) {
+  await base("expenses").destroy(recordId);
+}
