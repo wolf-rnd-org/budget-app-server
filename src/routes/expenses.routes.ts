@@ -6,6 +6,7 @@ import { listExpensesForUserPrograms } from "../services/expenses.service.js";
 import { listAllExpenses } from "../services/expenses.service.js";
 import { z } from "zod";
 import multer from "multer";
+import * as programsSvc from "../services/programs.service.js";
 
 
 // Simple lookup functions (inline implementation)
@@ -394,7 +395,32 @@ const uploadFields = upload.fields([
   { name: "bank_details_file", maxCount: 1 },
 ]);
 
+// const AIRTABLE_EXPENSE_TYPE_MAP: Record<string, string> = {
+//   petty_cash: 'קופה קטנה',
+//   salary: 'דיווח שכר',
+//   check: "צ'ק",
+//   regular: 'הוצאה רגילה',
+// };
 // סכמה אחידה:
+const PettyCashPayload = z.object({
+  supplier_name: z.string().optional(),
+  expense_type: z.literal("קופה קטנה"),
+  amount: z.coerce.number().gt(0),
+  program_id: z.string().min(1),
+  categories: z.array(z.string()).min(1),
+  user_id: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  status: z.string().optional(),
+  business_number: z.string().optional(),
+  project: z.string().optional(),
+  supplier_email: z.string().optional(),
+  bank_name: z.string().optional(),
+  bank_branch: z.string().optional(),
+  bank_account: z.string().optional(),
+  beneficiary: z.string().optional(),
+  invoice_description: z.string().optional(),
+});
+
 const CreatePayload = z.object({
   user_id: z.union([z.string(), z.number()]).transform(String),
   program_id: z.string().min(1),
@@ -424,6 +450,94 @@ const CreatePayload = z.object({
 // POST /expenses
 r.post("/", uploadFields, async (req, res, next) => {
   try {
+    // JSON-only petty_cash branch
+    const ct = String(req.headers["content-type"] || "").toLowerCase();
+    if (ct.includes("application/json")) {
+      const petty = PettyCashPayload.safeParse(req.body);
+      if (!petty.success) {
+        return res.status(400).json({ error: "validation_error", issues: petty.error.issues });
+      }
+      const data = petty.data;
+      // if (data.expense_type !== "petty_cash") {
+      //   return res.status(400).json({ error: "invalid_invoice_type", message: "Only petty_cash allowed for JSON flow" });
+      // }
+
+      const normalizedStatus = (data.status && data.status.trim()) || "petty_cash";
+      const program_rec_id = await findProgramRecIdById(data.program_id);
+      if (!program_rec_id) {
+        return res.status(400).json({ error: "invalid_program_id", message: "program_id not found" });
+      }
+
+      // Program authorization by user assignment
+      try {
+        const allowed = await programsSvc.listByUserId(data.user_id);
+        const allowedSet = new Set(allowed.map(p => String(p.id)));
+        if (!allowedSet.has(String(data.program_id)) && !allowedSet.has(String(program_rec_id))) {
+          return res.status(403).json({ error: "forbidden", message: "User is not authorized for the specified program" });
+        }
+      } catch {
+        return res.status(403).json({ error: "forbidden", message: "Unable to verify program authorization" });
+      }
+
+      const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+      const category_rec_ids = data.categories.every((c) => recIdPattern.test(c))
+        ? data.categories
+        : await findCategoryRecIdsByNames(data.categories, program_rec_id);
+      if (!Array.isArray(category_rec_ids) || category_rec_ids.length === 0) {
+        return res.status(400).json({ error: "validation_error", message: "Invalid categories" });
+      }
+
+
+      const invoice_description = data.invoice_description && data.invoice_description.trim()
+        ? data.invoice_description.trim()
+        : ((data.supplier_name && data.supplier_name.trim()) || data.expense_type);
+
+      const created = await svc.createPettyCashExpense({
+        user_id: data.user_id,
+        program_id: data.program_id,
+        program_rec_id,
+        date: data.date,
+        amount: data.amount,
+        supplier_name: data.supplier_name,
+        expense_type: data.expense_type,
+        invoice_description,
+        supplier_email: data.supplier_email,
+        // status: data.status || "",
+        status: normalizedStatus,
+        categories: category_rec_ids,
+        business_number: data.business_number,
+        bank_name: data.bank_name,
+        bank_branch: data.bank_branch,
+        bank_account: data.bank_account,
+        beneficiary: data.beneficiary,
+        project: data.project,
+      } as any);
+
+      const responseBody: any = {
+        id: created.id,
+        expense_type: data.expense_type,
+        amount: data.amount,
+        program_id: data.program_id,
+        categories: data.categories,
+        user_id: data.user_id,
+        date: data.date,
+        // status: data.status,
+        // invoice_type: data.invoice_type,
+        invoice_description,
+      };
+
+      if (data.supplier_name !== undefined) responseBody.supplier_name = data.supplier_name;
+      if (data.business_number !== undefined) responseBody.business_number = data.business_number;
+      if (data.project !== undefined) responseBody.project = data.project;
+      if (data.supplier_email !== undefined) responseBody.supplier_email = data.supplier_email;
+      if (data.bank_name !== undefined) responseBody.bank_name = data.bank_name;
+      if (data.bank_branch !== undefined) responseBody.bank_branch = data.bank_branch;
+      if (data.bank_account !== undefined) responseBody.bank_account = data.bank_account;
+      if (data.beneficiary !== undefined) responseBody.beneficiary = data.beneficiary;
+
+      return res.status(201).json(responseBody);
+    }
+
     const body: any = { ...req.body };
     const raw = CreatePayload.parse(body);
 

@@ -330,6 +330,7 @@ const ALLOWED_STATUS = new Set([
   "paid",
   "receipt_uploaded",
   "closed",
+  "petty_cash",
 ]);
 function normalizeStatus(s?: string) {
   const v = String(s || "").trim().toLowerCase();
@@ -689,6 +690,60 @@ export async function createExpense(input: CreateExpenseInput) {
   return { id: rec.id, fields: rec.fields };
 }
 
+// Minimal creation for JSON-only petty_cash flow (no attachment/file handling, no status normalization)
+// Minimal creation for JSON-only petty_cash flow (no attachment/file handling, no status normalization)
+export async function createPettyCashExpense(input: {
+  user_id: string;
+  program_id: string;
+  program_rec_id: string;
+  date: string;
+  amount: number;
+  supplier_name?: string;
+  expense_type: string;
+  invoice_description: string;
+  supplier_email?: string;
+  status: string;
+  categories: string[];
+  business_number?: string;
+  bank_name?: string;
+  bank_branch?: string;
+  bank_account?: string;
+  beneficiary?: string;
+  project?: string;
+}) {
+  const fields: Record<string, any> = {
+    program_id: [input.program_rec_id],
+    date: input.date,
+    amount: input.amount,
+    supplier_name: input.supplier_name,
+    business_number: input.business_number,
+    // invoice_type: "petty_cash",
+    expense_type: input.expense_type,
+    invoice_description: input.invoice_description,
+    supplier_email: input.supplier_email,
+    status: input.status || 'petty_cash',
+    user_id: String(input.user_id ?? ""),
+    categories: input.categories,
+    bank_name: input.bank_name,
+    bank_branch: input.bank_branch,
+    bank_account: input.bank_account,
+    beneficiary: input.beneficiary,
+  };
+
+  if (input.project !== undefined) fields.project = input.project;
+
+  for (const k of Object.keys(fields)) {
+    const v = fields[k];
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0) || v === "") {
+      delete fields[k];
+    }
+  }
+
+  const rec = await base('expenses').create(fields);
+  return { id: rec.id, fields: rec.fields };
+}
+
+
 export type UpdateExpenseInput = Partial<{
   program_id: string;            // rec id or text id (we'll keep as-is if rec id)
   date: string;
@@ -906,18 +961,18 @@ export async function queryExpenses(args: {
 
 export async function uploadAttachmentToAirtable(opts: {
   recordId: string; fieldName: string; buffer: Buffer; fileName: string; mime: string, tableName: string
-}) {  
+}) {
   const { recordId, fieldName, buffer, fileName, mime, tableName } = opts;
   const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
   console.log(url);
-  
-// const tableName = "expenses"; // נניח שהטבלה היא expenses
+
+  // const tableName = "expenses"; // נניח שהטבלה היא expenses
   // Prepare safer headers for filenames/mime and optional debug
   const safeMime = mime && String(mime).trim() ? mime : "application/octet-stream";
   const asciiName = sanitizeFilename(fileName).replace(/[^\x20-\x7E]/g, "_");
   const filenameStar = encodeURIComponent(fileName);
   if (process.env.DEBUG_AIRTABLE === "1") {
-     console.error("[Airtable/uploadAttachment]", { url, tableName, recordId, fieldName, fileName, asciiName, mime: safeMime, size: buffer?.length ?? 0 });
+    console.error("[Airtable/uploadAttachment]", { url, tableName, recordId, fieldName, fileName, asciiName, mime: safeMime, size: buffer?.length ?? 0 });
   }
 
   const res = await fetch(url, {
