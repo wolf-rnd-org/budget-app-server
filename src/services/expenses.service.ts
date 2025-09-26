@@ -3,6 +3,33 @@ import { base } from "../utils/airtableConfig.js";
 
 import { z } from "zod";
 
+// --- unified mapper: NO logic change ---
+export function mapRowToApi(e: any) {
+  return {
+    id: String(e.id),
+    budget: Number(e.budget ?? 0),
+    project: String(e.project ?? ""),
+    date: String(e.date ?? ""),
+    // שימי לב: משאירים בדיוק את הלוגיקה הישנה של categories כדי לא לשנות התנהגות.
+    categories: Array.isArray(e.categories) ? e.categories : String(e.categories ?? ""),
+    amount: Number(e.amount ?? 0),
+    invoice_description: String(e.invoice_description ?? ""),
+    supplier_name: String(e.supplier_name ?? ""),
+    invoice_file: toAttachmentArray((e as any).invoice_file),
+    business_number: String(e.business_number ?? ""),
+    invoice_type: String(e.invoice_type ?? ""),
+    bank_name: String((e as any).bank_name ?? ""),
+    bank_branch: String((e as any).bank_branch ?? ""),
+    bank_account: String((e as any).bank_account ?? ""),
+    bank_details_file: toAttachmentArray((e as any).bank_details_file),
+    supplier_email: e.supplier_email ? String(e.supplier_email) : null,
+    status: String(e.status ?? ""),
+    user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
+    priority: (e.priority ?? null) as any,
+    program_id: String((e as any).program_id ?? ""),
+    program_name: String((e as any).program_name ?? ""),
+  };
+}
 const ExpenseSchema = z.object({
   id: z.string(),
   budget: z.number(),
@@ -21,6 +48,33 @@ const ExpenseSchema = z.object({
   user_id: z.union([z.number(), z.string()]),
 });
 export type Expense = z.infer<typeof ExpenseSchema>;
+
+
+// ---- Salary payload (מהקליינט) ----
+export const SalaryPayloadSchema = z.object({
+  type: z.literal('salary'),
+  supplier_name: z.string().min(1),
+  is_gross: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const normalized = val.trim().toLowerCase();
+      if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    }
+    if (typeof val === 'number') {
+      if (val === 1) return true;
+      if (val === 0) return false;
+    }
+    return val;
+  }, z.boolean()),
+  rate: z.coerce.number().positive(),
+  quantity: z.coerce.number().positive(),
+  amount: z.coerce.number().positive(),
+  categories: z.array(z.string()).min(1),
+  id_number: z.string().optional(),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+});
+
+export type SalaryPayload = z.infer<typeof SalaryPayloadSchema>;
 
 async function loadAll(): Promise<Expense[]> {
   const raw = await readJson<unknown>("expenses.json"); // ⚠️ כאן ודאי שזה expenses.json
@@ -170,29 +224,8 @@ export async function listAllExpenses(args: {
   const rows = filtered.slice(start, start + Math.max(1, pageSize));
   const hasMore = start + rows.length < totalCount;
 
-  const data = rows.map((e: any) => ({
-    id: String(e.id),
-    budget: Number(e.budget ?? 0),
-    project: String(e.project ?? ""),
-    date: String(e.date ?? ""),
-    categories: Array.isArray(e.categories) ? e.categories : String(e.categories ?? ""),
-    amount: Number(e.amount ?? 0),
-    invoice_description: String(e.invoice_description ?? ""),
-    supplier_name: String(e.supplier_name ?? ""),
-    invoice_file: toAttachmentArray((e as any).invoice_file),
-    business_number: String(e.business_number ?? ""),
-    invoice_type: String(e.invoice_type ?? ""),
-    bank_name: String((e as any).bank_name ?? ""),
-    bank_branch: String((e as any).bank_branch ?? ""),
-    bank_account: String((e as any).bank_account ?? ""),
-    bank_details_file: toAttachmentArray((e as any).bank_details_file),
-    supplier_email: e.supplier_email ? String(e.supplier_email) : null,
-    status: String(e.status ?? ""),
-    user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
-    priority: (e.priority ?? null) as any,
-    program_id: String((e as any).program_id ?? ""),
-    program_name: String((e as any).program_name ?? ""),
-  }));
+  const data = rows.map(mapRowToApi);
+
 
   return { data, hasMore, totalCount };
 }
@@ -323,6 +356,22 @@ function toAttachmentArray(v: any): Array<{ url: string; filename?: string }> {
   return [];
 }
 
+function chooseIdFieldName(): 'business_number' | 'id_number' {
+  // אם בטבלת Airtable שלך השדה הוא business_number השאירי כך.
+  // אם בפועל קיים id_number, פשוט החזירי 'id_number'.
+  return 'id_number';
+}
+
+function computeEmployerCost(is_gross: boolean, amount: number): number {
+  return is_gross ? +(amount * 1.151).toFixed(2) : +((amount / 0.8783) * 1.151).toFixed(2);
+}
+
+function computeGrossNet(is_gross: boolean, amount: number): { gross: number; net: number } {
+  if (is_gross) {
+    return { gross: amount, net: +(amount * 0.8783).toFixed(2) };
+  }
+  return { gross: +(amount / 0.8783).toFixed(2), net: amount };
+}
 
 const ALLOWED_STATUS = new Set([
   "new",
@@ -330,6 +379,8 @@ const ALLOWED_STATUS = new Set([
   "paid",
   "receipt_uploaded",
   "closed",
+  "petty_cash",
+  "salary"
 ]);
 function normalizeStatus(s?: string) {
   const v = String(s || "").trim().toLowerCase();
@@ -462,29 +513,8 @@ export async function listExpensesForUserPrograms(args: {
   const hasMore = start + rows.length < totalCount;
 
   // 6) Normalize to API shape
-  const data = rows.map((e: any) => ({
-    id: String(e.id),
-    budget: Number(e.budget ?? 0),
-    project: String(e.project ?? ""),
-    date: String(e.date ?? ""),
-    categories: Array.isArray(e.categories) ? e.categories : String(e.categories ?? ""),
-    amount: Number(e.amount ?? 0),
-    invoice_description: String(e.invoice_description ?? ""),
-    supplier_name: String(e.supplier_name ?? ""),
-    invoice_file: toAttachmentArray((e as any).invoice_file),
-    business_number: String(e.business_number ?? ""),
-    invoice_type: String(e.invoice_type ?? ""),
-    bank_name: String((e as any).bank_name ?? ""),
-    bank_branch: String((e as any).bank_branch ?? ""),
-    bank_account: String((e as any).bank_account ?? ""),
-    bank_details_file: toAttachmentArray((e as any).bank_details_file),
-    supplier_email: e.supplier_email ? String(e.supplier_email) : null,
-    status: String(e.status ?? ""),
-    user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
-    priority: (e.priority ?? null) as any,
-    program_id: String((e as any).program_id ?? ""),
-    program_name: String((e as any).program_name ?? ""),
-  }));
+  const data = rows.map(mapRowToApi);
+
   console.log(data.length);
 
   return { data, hasMore, totalCount };
@@ -689,6 +719,110 @@ export async function createExpense(input: CreateExpenseInput) {
   return { id: rec.id, fields: rec.fields };
 }
 
+// Minimal creation for JSON-only petty_cash flow (no attachment/file handling, no status normalization)
+// Minimal creation for JSON-only petty_cash flow (no attachment/file handling, no status normalization)
+export async function createPettyCashExpense(input: {
+  user_id: string;
+  program_id: string;
+  program_rec_id: string;
+  date: string;
+  amount: number;
+  supplier_name?: string;
+  expense_type: string;
+  invoice_description: string;
+  supplier_email?: string;
+  status: string;
+  categories: string[];
+  business_number?: string;
+  bank_name?: string;
+  bank_branch?: string;
+  bank_account?: string;
+  beneficiary?: string;
+  project?: string;
+}) {
+  const fields: Record<string, any> = {
+    program_id: [input.program_rec_id],
+    date: input.date,
+    amount: input.amount,
+    supplier_name: input.supplier_name,
+    business_number: input.business_number,
+    // invoice_type: "petty_cash",
+    expense_type: input.expense_type,
+    invoice_description: input.invoice_description,
+    supplier_email: input.supplier_email,
+    status: input.status || 'petty_cash',
+    user_id: String(input.user_id ?? ""),
+    categories: input.categories,
+    bank_name: input.bank_name,
+    bank_branch: input.bank_branch,
+    bank_account: input.bank_account,
+    beneficiary: input.beneficiary,
+  };
+
+  if (input.project !== undefined) fields.project = input.project;
+
+  for (const k of Object.keys(fields)) {
+    const v = fields[k];
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0) || v === "") {
+      delete fields[k];
+    }
+  }
+
+  const rec = await base('expenses').create(fields);
+  return { id: rec.id, fields: rec.fields };
+}
+
+export async function createSalaryExpense(input: {
+  payload: SalaryPayload;             // מהקליינט (עובר ולידציה למעלה)
+  user_id: string | number;           // מה־auth/middleware
+  program_rec_id: string;             // rec id של התכנית בטבלת programs
+  // אופציונלי: אם אתם מחזיקים גם מזהה טקסטואלי
+  program_id_text?: string;
+}) {
+  // ולידציה להרגעה (אם כבר וידאת בשכבת הראוטר, אפשר להשאיר כהערה)
+  const parsed = SalaryPayloadSchema.safeParse(input.payload);
+  if (!parsed.success) {
+    const err: any = new Error('ValidationError');
+    err.details = parsed.error.flatten();
+    err.status = 400;
+    throw err;
+  }
+  const dto = parsed.data;
+
+  const idField = chooseIdFieldName();
+  const is_gross: 'gross' | 'net' = dto.is_gross ? 'gross' : 'net';
+  const employer_cost = computeEmployerCost(dto.is_gross, dto.amount);
+  const { gross, net } = computeGrossNet(dto.is_gross, dto.amount);
+
+  // שדות Airtable
+  const fields: Record<string, any> = {
+    expense_type: 'דיווח שכר',
+    program_id: [input.program_rec_id],
+    supplier_name: dto.supplier_name,
+    [idField]: dto.id_number,
+    month: dto.month,
+    rate: dto.rate,
+    quantity: dto.quantity,
+    amount: dto.amount,
+    is_gross,
+    categories: dto.categories,   // IDs של קטגוריות (Link)
+    employer_cost,
+    user_id: String(input.user_id),
+    status: 'salary',
+  };
+
+  // ניקוי ערכים ריקים/undefined
+  for (const k of Object.keys(fields)) {
+    const v = fields[k];
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0) || v === '') {
+      delete fields[k];
+    }
+  }
+
+  const rec = await base('expenses').create(fields, { typecast: true });
+  return { id: rec.id, fields: rec.fields };
+}
+
 export type UpdateExpenseInput = Partial<{
   program_id: string;            // rec id or text id (we'll keep as-is if rec id)
   date: string;
@@ -706,10 +840,26 @@ export type UpdateExpenseInput = Partial<{
   bank_account: string;
   beneficiary: string;
   project: string;
+  id_number: string;
+  idNumber: string;            // alias מהקליינט
+  month: string;               // YYYY-MM
+  rate: number;
+  quantity: number;
+  is_gross: boolean | 'gross' | 'net';
+  // --- META מהקליינט (אם נשלח בתוך meta) ---
+  meta?: {
+    is_gross?: boolean;
+    rate?: number;
+    quantity?: number;
+    idNumber?: string;
+    month?: string;
+  };
 }>;
 
 export async function updateExpense(recordId: string, input: UpdateExpenseInput) {
   const fields: Record<string, any> = {};
+  const data: any = { ...input };
+  if (data.idNumber && !data.id_number) data.id_number = data.idNumber;
   // Only include provided keys
   if (input.program_id) fields.program_id = [input.program_id];
   if (input.date !== undefined) fields.date = input.date;
@@ -727,7 +877,79 @@ export async function updateExpense(recordId: string, input: UpdateExpenseInput)
   if (input.bank_account !== undefined) fields.bank_account = input.bank_account;
   if (input.beneficiary !== undefined) fields.beneficiary = input.beneficiary;
   // if (input.project !== undefined) fields.project = input.project;
+  // --- שדות שכר בשורש ---
+  if (data.id_number !== undefined) fields.id_number = String(data.id_number);
+  if (data.month !== undefined) fields.month = String(data.month);
+  if (data.rate !== undefined) fields.rate = Number(data.rate);
+  if (data.quantity !== undefined) fields.quantity = Number(data.quantity);
+  if (data.is_gross !== undefined) {
+    // מקבל גם boolean וגם 'gross'/'net'
+    const v = data.is_gross;
+    fields.is_gross = (typeof v === 'boolean') ? (v ? 'gross' : 'net') : v;
+  }
 
+  // --- META מהקליינט (לא דורס, רק משלים אם לא הגיעו בשורש) ---
+  if (data.meta && typeof data.meta === 'object') {
+    const m = data.meta;
+    if (fields.is_gross === undefined && typeof m.is_gross === 'boolean') {
+      fields.is_gross = m.is_gross ? 'gross' : 'net';
+    }
+    if (fields.rate === undefined && m.rate != null) {
+      fields.rate = Number(m.rate);
+    }
+    if (fields.quantity === undefined && m.quantity != null) {
+      fields.quantity = Number(m.quantity);
+    }
+    if (fields.id_number === undefined && m.idNumber != null) {
+      fields.id_number = String(m.idNumber);
+    }
+    if (fields.month === undefined && m.month != null) {
+      fields.month = String(m.month);
+    }
+  }
+  const salaryTouched =
+    data.is_gross !== undefined || data.amount !== undefined ||
+    data.rate !== undefined || data.quantity !== undefined ||
+    (data.meta && (
+      data.meta.is_gross !== undefined ||
+      data.meta.rate !== undefined ||
+      data.meta.quantity !== undefined
+    ));
+
+  if (salaryTouched) {
+    // שלוף את הרשומה להשלים ערכים חסרים
+    const recNow = await base("expenses").find(recordId);
+    const cur: any = recNow.fields || {};
+
+    // קבע מצב ברוטו/נטו כ־boolean
+    const isGrossBool =
+      fields.is_gross === 'gross' ? true :
+        fields.is_gross === 'net' ? false :
+          typeof data.is_gross === 'boolean' ? data.is_gross :
+            String(cur.is_gross || '').toLowerCase() === 'gross';
+
+    // חשב amount מתוך rate*quantity אם לא נשלח amount
+    const rateNow = fields.rate ?? data.rate ?? cur.rate;
+    const qtyNow = fields.quantity ?? data.quantity ?? cur.quantity;
+    const amountFromRQ =
+      (rateNow != null && qtyNow != null) ? Number(rateNow) * Number(qtyNow) : undefined;
+    const amountNow =
+      fields.amount ?? data.amount ?? amountFromRQ ?? Number(cur.amount ?? 0);
+
+    if (Number.isFinite(amountNow)) {
+      // עדכן עלות מעסיק תמיד (השדה כבר קיים אצלך ביצירה)
+      fields.employer_cost = computeEmployerCost(isGrossBool, Number(amountNow));
+
+      // עדכן GROSS/NET רק אם קיימים בטבלה כדי להימנע משגיאת סכימה
+      const hasGross = Object.prototype.hasOwnProperty.call(cur, 'gross');
+      const hasNet = Object.prototype.hasOwnProperty.call(cur, 'net');
+      if (hasGross || hasNet) {
+        const { gross, net } = computeGrossNet(isGrossBool, Number(amountNow));
+        if (hasGross) fields.gross = gross;
+        if (hasNet) fields.net = net;
+      }
+    }
+  }
   // Clean undefined/empty (except allow empty string to clear text fields if desired)
   for (const k of Object.keys(fields)) {
     const v = fields[k];
@@ -736,7 +958,7 @@ export async function updateExpense(recordId: string, input: UpdateExpenseInput)
     }
   }
 
-  const rec = await base("expenses").update(recordId, fields);
+  const rec = await base("expenses").update(recordId, fields, { typecast: true });
   return { id: rec.id, fields: rec.fields };
 }
 export async function queryExpenses(args: {
@@ -876,29 +1098,7 @@ export async function queryExpenses(args: {
   const dataSlice = filtered.slice(start, start + Math.max(1, pageSize));
 
   // Map to response shape and normalize optional fields
-  const data = dataSlice.map((e: any) => ({
-    id: String(e.id),
-    budget: Number(e.budget ?? 0),
-    project: String(e.project ?? ""),
-    date: String(e.date ?? ""),
-    categories: Array.isArray(e.categories) ? e.categories : String(e.categories ?? ""),
-    amount: Number(e.amount ?? 0),
-    invoice_description: String(e.invoice_description ?? ""),
-    supplier_name: String(e.supplier_name ?? ""),
-    invoice_file: toAttachmentArray((e as any).invoice_file),
-    business_number: String(e.business_number ?? ""),
-    invoice_type: String(e.invoice_type ?? ""),
-    bank_name: String((e as any).bank_name ?? ""),
-    bank_branch: String((e as any).bank_branch ?? ""),
-    bank_account: String((e as any).bank_account ?? ""),
-    bank_details_file: toAttachmentArray((e as any).bank_details_file),
-    supplier_email: e.supplier_email ? String(e.supplier_email) : null,
-    status: String(e.status ?? ""),
-    user_id: typeof e.user_id === "number" ? e.user_id : String(e.user_id ?? ""),
-    priority: (e.priority ?? null) as any,
-    program_id: (e as any).program_id ? String((e as any).program_id) : "",
-    program_name: String((e as any).program_name ?? ""),
-  }));
+  const data = dataSlice.map(mapRowToApi);
 
   const hasMore = start + data.length < totalCount;
   return { data, hasMore, totalCount };
@@ -906,18 +1106,18 @@ export async function queryExpenses(args: {
 
 export async function uploadAttachmentToAirtable(opts: {
   recordId: string; fieldName: string; buffer: Buffer; fileName: string; mime: string, tableName: string
-}) {  
+}) {
   const { recordId, fieldName, buffer, fileName, mime, tableName } = opts;
   const url = `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
   console.log(url);
-  
-// const tableName = "expenses"; // נניח שהטבלה היא expenses
+
+  // const tableName = "expenses"; // נניח שהטבלה היא expenses
   // Prepare safer headers for filenames/mime and optional debug
   const safeMime = mime && String(mime).trim() ? mime : "application/octet-stream";
   const asciiName = sanitizeFilename(fileName).replace(/[^\x20-\x7E]/g, "_");
   const filenameStar = encodeURIComponent(fileName);
   if (process.env.DEBUG_AIRTABLE === "1") {
-     console.error("[Airtable/uploadAttachment]", { url, tableName, recordId, fieldName, fileName, asciiName, mime: safeMime, size: buffer?.length ?? 0 });
+    console.error("[Airtable/uploadAttachment]", { url, tableName, recordId, fieldName, fileName, asciiName, mime: safeMime, size: buffer?.length ?? 0 });
   }
 
   const res = await fetch(url, {
@@ -997,7 +1197,7 @@ export async function uploadAttachmentToAirtableJSON(opts: {
         const parsed = JSON.parse(text);
         const errPayload = (parsed as any)?.error ?? parsed;
         message = JSON.stringify(errPayload);
-      } catch {}
+      } catch { }
     }
     const err: any = new Error(message || "Airtable uploadAttachment failed");
     err.status = res.status;
