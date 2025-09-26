@@ -7,6 +7,7 @@ import { listAllExpenses } from "../services/expenses.service.js";
 import { z } from "zod";
 import multer from "multer";
 import * as programsSvc from "../services/programs.service.js";
+import { SalaryPayloadSchema, createSalaryExpense } from "../services/expenses.service.js";
 
 
 // Simple lookup functions (inline implementation)
@@ -447,12 +448,76 @@ const CreatePayload = z.object({
   project: z.string().optional().default("")
 });
 
+const SalaryCreateSchema = SalaryPayloadSchema.extend({
+  user_id: z.union([z.string(), z.number()]).transform(String),
+  program_id: z.string().min(1),
+});
+
 // POST /expenses
 r.post("/", uploadFields, async (req, res, next) => {
   try {
     // JSON-only petty_cash branch
     const ct = String(req.headers["content-type"] || "").toLowerCase();
     if (ct.includes("application/json")) {
+      const body = req.body ?? {};
+
+      if (body && (body.type === "salary" || body.expense_type === "דיווח שכר" || String(body.invoice_type || "").toLowerCase() === "salary")) {
+        if (body.categoryIds && !body.categories) body.categories = body.categoryIds; // client → schema
+        if (body.idNumber && !body.id_number) body.id_number = body.idNumber;       // camel → snake
+        if (body.payee && !body.supplier_name) body.supplier_name = body.payee;     // שם מקבל → supplier_name
+        if (!body.type) body.type = "salary";
+      }
+      if (body.meta && typeof body.meta === "object") {
+        const { is_gross, rate, quantity } = body.meta;
+        if (typeof is_gross === "boolean" && typeof body.is_gross === "undefined") body.is_gross = is_gross;
+        if (rate != null && typeof body.rate === "undefined") body.rate = Number(rate);
+        if (quantity != null && typeof body.quantity === "undefined") body.quantity = Number(quantity);
+        delete body.meta;
+      }
+      // אם זה דיווח שכר — ננתב למסלול salary ונצא מפה
+      const isSalary =
+        body.type === "salary" ||
+        body.expense_type === "דיווח שכר" ;
+
+      if (isSalary) {
+        const parsed = SalaryPayloadSchema.safeParse(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: "validation_error", issues: parsed.error.issues });
+        }
+
+        const user_id = String(body.user_id || "").trim();
+        const program_id = String(body.program_id || "").trim();
+        if (!user_id || !program_id) {
+          return res.status(400).json({
+            error: "validation_error",
+            issues: [
+              ...(user_id ? [] : [{ path: ["user_id"], message: "user_id is required" }]),
+              ...(program_id ? [] : [{ path: ["program_id"], message: "program_id is required" }]),
+            ],
+          });
+        }
+
+        const program_rec_id = await findProgramRecIdById(program_id);
+        if (!program_rec_id) {
+          return res.status(400).json({ error: "invalid_program_id", message: "program_id not found" });
+        }
+
+        // מיפוי קטגוריות לשדות recId (אם נשלחו שמות/מזהים טקסטואליים)
+        const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+        const catIds: string[] = Array.isArray(parsed.data.categories) ? parsed.data.categories : [];
+        const category_rec_ids = catIds.every((c) => recIdPattern.test(c))
+          ? catIds
+          : await findCategoryRecIdsByNames(catIds, program_rec_id);
+
+        const created = await createSalaryExpense({
+          payload: { ...parsed.data, categories: category_rec_ids } as any,
+          user_id,
+          program_rec_id,
+          program_id_text: program_id,
+        });
+
+        return res.status(201).json(created);
+      }
       const petty = PettyCashPayload.safeParse(req.body);
       if (!petty.success) {
         return res.status(400).json({ error: "validation_error", issues: petty.error.issues });
@@ -694,12 +759,13 @@ const PatchSchema = z.object({
   bank_account: z.string().optional(),
   beneficiary: z.string().optional(),
   project: z.string().optional(),
-});
+}).passthrough(); ;
 
 // Schema for status update
 const StatusUpdateSchema = z.object({
-  status: z.enum(["new", "sent_for_payment", "paid", "receipt_uploaded", "closed"]),
-});
+status: z.enum([
+  "new","sent_for_payment","paid","receipt_uploaded","closed","petty_cash","salary"
+]).optional(),});
 
 r.patch("/:id", async (req, res, next) => {
   try {
@@ -871,7 +937,7 @@ r.delete("/:id", async (req, res, next) => {
     if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
     await svc.deleteExpense(id);
     return res.status(204).send();
-  } catch (e:any) {
+  } catch (e: any) {
     if (e?.status === 404) return res.status(404).json({ error: "not_found", message: "Expense not found" });
     next(e);
   }
