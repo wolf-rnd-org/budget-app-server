@@ -792,7 +792,7 @@ export async function createSalaryExpense(input: {
   const idField = chooseIdFieldName();
   const is_gross: 'gross' | 'net' = dto.is_gross ? 'gross' : 'net';
   const employer_cost = computeEmployerCost(dto.is_gross, dto.amount);
-  const { gross, net } = computeGrossNet(dto.is_gross, dto.amount);
+  // const { gross, net } = computeGrossNet(dto.is_gross, dto.amount);
 
   // שדות Airtable
   const fields: Record<string, any> = {
@@ -803,7 +803,7 @@ export async function createSalaryExpense(input: {
     month: dto.month,
     rate: dto.rate,
     quantity: dto.quantity,
-    amount: dto.amount,
+    amount: employer_cost,// הסכום ששולם בפועל (עלות מעסיק)
     is_gross,
     categories: dto.categories,   // IDs של קטגוריות (Link)
     employer_cost,
@@ -934,11 +934,19 @@ export async function updateExpense(recordId: string, input: UpdateExpenseInput)
     const amountFromRQ =
       (rateNow != null && qtyNow != null) ? Number(rateNow) * Number(qtyNow) : undefined;
     const amountNow =
-      fields.amount ?? data.amount ?? amountFromRQ ?? Number(cur.amount ?? 0);
 
+      // fields.amount ?? data.amount ?? amountFromRQ ?? Number(cur.amount ?? 0);
+      amountFromRQ ?? fields.amount ?? data.amount ?? Number(cur.amount ?? 0);
     if (Number.isFinite(amountNow)) {
       // עדכן עלות מעסיק תמיד (השדה כבר קיים אצלך ביצירה)
       fields.employer_cost = computeEmployerCost(isGrossBool, Number(amountNow));
+      // אם זו רשומת דיווח שכר - גם amount יהיה עלות המעסיק
+      const isSalaryRecord =
+        String(cur.expense_type || '').includes('דיווח שכר') ||
+        String(cur.status || '').toLowerCase() === 'salary';
+      if (isSalaryRecord) {
+        fields.amount = fields.employer_cost;
+      }
 
       // עדכן GROSS/NET רק אם קיימים בטבלה כדי להימנע משגיאת סכימה
       const hasGross = Object.prototype.hasOwnProperty.call(cur, 'gross');
