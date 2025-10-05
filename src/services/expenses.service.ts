@@ -134,6 +134,7 @@ export async function listAllExpenses(args: {
   date_to?: string | undefined;
   sort_by?: "date" | "amount" | "status" | "created_at" | "supplier_name" | undefined;
   sort_dir?: "asc" | "desc" | undefined;
+  program_id?: string | undefined;
 }) {
   const {
     page = 1,
@@ -145,6 +146,7 @@ export async function listAllExpenses(args: {
     date_to,
     sort_by = "date",
     sort_dir = "desc",
+    program_id,
   } = args;
 
   // Fetch ALL expenses from Airtable without any program or user filtering
@@ -162,6 +164,42 @@ export async function listAllExpenses(args: {
 
   // Apply filters
   let filtered = allRows;
+  // Optional program filter (recId or text id)
+  if (program_id) {
+    const pid = String(program_id).trim();
+    if (pid) {
+      const recIdPattern = /^rec[0-9A-Za-z]{14}$/i;
+      let programRecId: string | null = null;
+      let programTextId: string | null = null;
+
+      if (recIdPattern.test(pid)) {
+        programRecId = pid;
+      } else {
+        const esc = pid.replace(/\"/g, '\\"');
+        try {
+          const found = await base("programs")
+            .select({ filterByFormula: `{program_id} = "${esc}"`, maxRecords: 1, pageSize: 1 })
+            .all();
+          if (found[0]) {
+            programRecId = found[0].id;
+            programTextId = String((found[0].fields as any)?.program_id ?? pid);
+          } else {
+            programTextId = pid;
+          }
+        } catch {
+          programTextId = pid; // fallback to text filter
+        }
+      }
+
+      filtered = filtered.filter((e: any) => {
+        const v = (e as any).program_id;
+        const vals: string[] = Array.isArray(v) ? v.map((x: any) => String(x)) : [String(v ?? "")];
+        const byRec = programRecId ? vals.includes(programRecId) : false;
+        const byText = programTextId ? vals.includes(programTextId) : false;
+        return byRec || byText;
+      });
+    }
+  }
   if (status) filtered = filtered.filter((e: any) => String(e.status ?? "") === status);
   if (priority) filtered = filtered.filter((e: any) => (e.priority ?? null) === priority);
   if (date_from || date_to) {
