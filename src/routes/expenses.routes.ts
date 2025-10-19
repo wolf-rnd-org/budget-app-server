@@ -182,7 +182,7 @@ const QuerySchema = z.object({
   // Treat empty q as undefined (no search)
   q: z.preprocess(emptyToUndef, z.string().trim().min(1).optional()),
   status: z
-    .enum(["new", "sent_for_payment", "paid", "receipt_uploaded", "closed"]).optional(),
+    .enum(["new", "sent_for_payment", "paid", "receipt_uploaded", "closed", "petty_cash", "salary"]).optional(),
   priority: z.enum(["urgent", "normal"]).optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -269,6 +269,7 @@ r.get("/", async (req, res, next) => {
           date_to: base.data.date_to,
           sort_by: base.data.sort_by,
           sort_dir: base.data.sort_dir,
+          program_id: requestedPrograms[0],
         });
         break;
 
