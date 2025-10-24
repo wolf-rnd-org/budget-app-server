@@ -8,7 +8,9 @@ import { z } from "zod";
 import multer from "multer";
 import * as programsSvc from "../services/programs.service.js";
 import { SalaryPayloadSchema, createSalaryExpense } from "../services/expenses.service.js";
-
+import { sendEmail } from "../services/email.service.js";
+import { getUserClaims } from "../services/auth.service.js";
+import { resolveUserId } from "../utils/authCtx.js";
 
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
@@ -478,7 +480,7 @@ r.post("/", uploadFields, async (req, res, next) => {
       // אם זה דיווח שכר — ננתב למסלול salary ונצא מפה
       const isSalary =
         body.type === "salary" ||
-        body.expense_type === "דיווח שכר" ;
+        body.expense_type === "דיווח שכר";
 
       if (isSalary) {
         const parsed = SalaryPayloadSchema.safeParse(body);
@@ -760,13 +762,14 @@ const PatchSchema = z.object({
   bank_account: z.string().optional(),
   beneficiary: z.string().optional(),
   project: z.string().optional(),
-}).passthrough(); ;
+}).passthrough();;
 
 // Schema for status update
 const StatusUpdateSchema = z.object({
-status: z.enum([
-  "new","sent_for_payment","paid","receipt_uploaded","closed","petty_cash","salary"
-]).optional(),});
+  status: z.enum([
+    "new", "sent_for_payment", "paid", "receipt_uploaded", "closed", "petty_cash", "salary"
+  ]).optional(),
+});
 
 r.patch("/:id", async (req, res, next) => {
   try {
@@ -903,7 +906,7 @@ async function enrichCategoriesWithLookup(rows: any[]) {
 function normalizeAttachments(v: any): Array<{ url: string; filename?: string }> {
   if (!v) return [];
   if (typeof v === "string") return v ? [{ url: v }] : [];
-  if (Array.isArray(v)) return v.map(x => (typeof x === "string" ? { url: x } : x)).filter(a => a?.url);
+  if (Array.isArray(v)) return v.map(x => (typeof x === "string" ? { url: x } : { url: x?.url, filename: x?.filename, name: x?.name })).filter(a => a?.url);
   if (typeof v === "object" && (v as any).url) return [v as any];
   return [];
 }
@@ -931,6 +934,111 @@ r.get("/:id/files/:field/:index", async (req, res, next) => {
     next(e);
   }
 });
+function makeFilename(field: string, expenseId: string, supplier: string, i: number) {
+  const safe = String(supplier || "").trim().replace(/[^\w\u0590-\u05FF-]+/g, "_");
+  return `${field}_${safe || "supplier"}_${expenseId}_${i + 1}`;
+}
+
+// GET /expenses/:id/files/:field/:index/download-and-send
+r.get("/:id/files/:field/:index/download-and-send", async (req, res, next) => {
+  try {
+    const { id, field, index } = req.params as { id: string; field: string; index: string };
+    const allowed = new Set(["invoice_file", "bank_details_file", "receipt_file"]);
+    if (!allowed.has(field)) {
+      return res.status(400).json({ error: "validation_error", message: "Invalid field", details: { field } });
+    }
+
+    const rec = await base("expenses").find(id);
+    const files = normalizeAttachments((rec.fields as any)[field]);
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= files.length) {
+      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
+    }
+
+    const expenseUserId = (rec.fields as any)?.user_id; // אם נשמר על ההוצאה
+    const userId = resolveUserId(req, expenseUserId);
+    let operatorEmail: string | undefined;
+    try {
+      const me = await getUserClaims(userId, "BUDGETS");
+      operatorEmail = me?.email;
+    } catch (e) {
+      console.warn("[download-and-send] getUserClaims failed:", e);
+    }
+    // const metaFile = files[i];
+    // const fileUrl = String(metaFile.url);
+    // const filename = metaFile.filename || makeFilename(field, rec.id, (rec.fields as any)?.supplier_name || "", i);
+    // const me = await getUserClaims(userId, "BUDGETS");
+    // operatorEmail = me?.email;
+    const to = String((rec.fields as any)?.supplier_email || "").trim();
+    if (!to) {
+      return res.status(400).json({ error: "validation_error", message: "Missing supplier_email" });
+    }
+    void sendEmail({
+      to,
+      // cc: "r0548547387@gmail.com",
+      bcc: operatorEmail || "",
+
+      subject: "חשבונית הועברה לתשלום",
+      text: `שלום ${rec.fields?.supplier_name || "לקוח יקר"},
+חשבונית עסקה מספר ${rec.fields?.business_number || rec.id}
+על סך ${rec.fields?.amount?.toLocaleString() || "-"} ש"ח
+הועברה לתשלום.
+התשלום יבוצע עד 30 יום.
+
+בברכה,
+צוות וולף`,
+      html: `
+  <div dir="rtl" style="
+      font-family:'Assistant', Arial, sans-serif;
+      background-color:#f9fafb;
+      color:#222;
+      padding:24px;
+      border-radius:10px;
+      max-width:600px;
+      margin:auto;
+      line-height:1.8;
+      box-shadow:0 0 8px rgba(0,0,0,0.08);
+  ">
+    <h2 style="text-align:right; color:#2b3a67; margin-top:0;">
+      💼 חשבונית הועברה לתשלום
+    </h2>
+
+    <p style="text-align:right;">
+      שלום ${rec.fields?.supplier_name || "לקוח יקר"},
+    </p>
+
+    <p style="text-align:right; margin:0 0 12px;">
+      חשבונית עסקה מספר <b>${rec.fields?.business_number || rec.id}</b><br/>
+      על סך <b>${rec.fields?.amount?.toLocaleString() || "-"} ש"ח</b><br/>
+      הועברה לתשלום.
+    </p>
+
+    <p style="text-align:right; margin-top:12px;">
+      התשלום יבוצע עד <b>30 יום</b>.
+    </p>
+
+    <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;"/>
+
+    <p style="text-align:right; color:#555; font-size:0.9em;">
+      בברכה,<br/>
+      צוות הנהלת החשבונות של וולף<br/>
+      🧾 נשלח אוטומטית ממערכת ניהול ההוצאות
+    </p>
+  </div>
+  `,
+    }).catch(err => console.error("[download-and-send] email send failed:", err));
+    return res.status(202).json({
+      ok: true,
+      queued: true,
+      to,
+      bcc: operatorEmail
+    });
+
+  } catch (e) {
+    return next(e);   
+  }
+});
+
 
 r.delete("/:id", async (req, res, next) => {
   try {
