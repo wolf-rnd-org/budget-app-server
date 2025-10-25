@@ -26,7 +26,9 @@ export async function getProgramSummary(programId: string): Promise<{
 
   const budget = num(program.get("budget"));
   const extra = num(program.get("extra_budget"));
-  const totalBudget = round2(budget + extra);
+  // Support new Income field from Airtable
+  const income = num((program.get("income") as any) ?? (program.get("Income") as any));
+  const totalBudget = round2(budget + extra + income);
 
   const filter = `OR(FIND("${program.id}", ARRAYJOIN({program_id})), {program_id} = "${esc}")`;
 

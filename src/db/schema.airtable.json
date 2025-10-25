@@ -1,6 +1,6 @@
 {
   "budgets": ["name","budget","year","expenses"],
-  "programs": ["name","budget","extra_budget","year","expenses","date","grade","user_id"],
+  "programs": ["name","budget","extra_budget","income","income_details","year","expenses","date","grade","user_id"],
   "expenses": ["id","budget","project","date","categories","amount","invoice_description","supplier_name","invoice_file","business_number","invoice_type","bank_details_file","supplier_email","status","user_id"]
 }
 
