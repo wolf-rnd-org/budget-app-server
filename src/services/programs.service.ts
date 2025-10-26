@@ -6,16 +6,14 @@ export const SummarySchema = z.object({
   total_budget: z.number(),
   total_expenses: z.number(),
   remaining_balance: z.number(),
+  extra_budget: z.number().optional(),
+  income: z.number().optional(),
+  income_details: z.string().optional(),
 });
 
 export type BudgetSummary = z.infer<typeof SummarySchema>;
 
-export async function getProgramSummary(programId: string): Promise<{
-  program_id: string;
-  total_budget: number;
-  total_expenses: number;
-  remaining_balance: number;
-} | null> {
+export async function getProgramSummary(programId: string): Promise<z.infer<typeof SummarySchema> | null> {
   const esc = programId.replace(/\"/g, '\\"');
 
   const [program] = await base("programs")
@@ -29,6 +27,7 @@ export async function getProgramSummary(programId: string): Promise<{
   // Support new Income field from Airtable
   const income = num((program.get("income") as any) ?? (program.get("Income") as any));
   const totalBudget = round2(budget + extra + income);
+  const incomeDetails = (program.get("income_details") as any) ?? undefined;
 
   const filter = `OR(FIND("${program.id}", ARRAYJOIN({program_id})), {program_id} = "${esc}")`;
 
@@ -47,6 +46,9 @@ export async function getProgramSummary(programId: string): Promise<{
     total_budget: totalBudget,
     total_expenses: totalExpenses,
     remaining_balance: round2(totalBudget - totalExpenses),
+    extra_budget: extra,
+    income,
+    income_details: typeof incomeDetails === "string" && incomeDetails.trim().length > 0 ? incomeDetails : undefined,
   };
 }
 
