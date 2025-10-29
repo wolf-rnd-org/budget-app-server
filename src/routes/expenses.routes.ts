@@ -12,7 +12,7 @@ import { sendEmail } from "../services/email.service.js";
 import { getUserClaims } from "../services/auth.service.js";
 import { resolveUserId } from "../utils/authCtx.js";
 // import { getCurrentUserEmail, getEmailByUserId } from "../services/auth.service.js";
-
+import{getEmailByUserId} from "../services/auth.service.js"
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
 import { Readable } from "stream";
@@ -952,18 +952,18 @@ r.get("/:id/files/:field/:index/download", async (req, res, next) => {
 
     const contentType = fetched.headers.get("content-type") || "application/octet-stream";
     const contentLengthHeader = fetched.headers.get("content-length");
-   res.setHeader("Content-Type", contentType);
-res.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${filenameStar}`);
-if (contentLengthHeader) {
-  res.setHeader("Content-Length", contentLengthHeader);
-}
-// לתת לדפדפן לראות מיד כותרות (מאיץ TTFB)
-if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders();
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${filenameStar}`);
+    if (contentLengthHeader) {
+      res.setHeader("Content-Length", contentLengthHeader);
+    }
+    // לתת לדפדפן לראות מיד כותרות (מאיץ TTFB)
+    if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders();
 
-// להזרים ישירות ללא טעינה לזיכרון
-const nodeStream = Readable.fromWeb(fetched.body as any);
-await pump(nodeStream, res);
-return; // אין צורך ב-res.status/end – ה-pipeline סוגר את התגובה
+    // להזרים ישירות ללא טעינה לזיכרון
+    const nodeStream = Readable.fromWeb(fetched.body as any);
+    await pump(nodeStream, res);
+    return; // אין צורך ב-res.status/end – ה-pipeline סוגר את התגובה
   } catch (e) {
     return next(e);
   }
@@ -984,31 +984,32 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
       const rec = await base("expenses").find(id);
 
       const to = String((rec.fields as any)?.supplier_email || "").trim();
-      if (!to) return; 
+      if (!to) return;
 
       let operatorEmail: string | undefined = undefined;
       const userIdRaw = (req.query["user_id"] ?? req.query["userId"]) as unknown;
       if (typeof userIdRaw === "string" || typeof userIdRaw === "number") {
         const uid = Number(userIdRaw);
         if (Number.isFinite(uid) && uid > 0) {
-          try { operatorEmail = await getEmailByUserId(uid); } catch {}
+          try { operatorEmail = await getEmailByUserId(uid); } catch { }
         }
       }
       const ccList = Array.from(new Set([operatorEmail].filter(Boolean))) as string[];
-    void sendEmail({
-      to,
-      ...(ccList.length > 0 ? { cc: ccList } : {}),
+      void sendEmail({
+        to,
+        ...(ccList.length > 0 ? { cc: ccList } : {}),
 
       subject: "חשבונית הועברה לתשלום",
-      text: `שלום ${rec.fields?.supplier_name || "לקוח יקר"},
-חשבונית עסקה מספר ${rec.fields?.business_number || rec.id}
+        text: `שלום,
+מעדכנים כי החשבונית שהונפקה על ידי ${rec.fields?.supplier_name || "הספק"}
+עבור עסקה מספר ${rec.fields?.business_number || rec.id}
 על סך ${rec.fields?.amount?.toLocaleString() || "-"} ש"ח
 הועברה לתשלום.
-התשלום יבוצע עד 30 יום.
+התשלום צפוי להתבצע עד 30 יום.
 
 בברכה,
-צוות וולף`,
-      html: `
+צוות הנהלת החשבונות של וולף`,
+        html: `
   <div dir="rtl" style="
       font-family:'Assistant', Arial, sans-serif;
       background-color:#f9fafb;
@@ -1025,17 +1026,15 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
     </h2>
 
     <p style="text-align:right;">
-      שלום ${rec.fields?.supplier_name || "לקוח יקר"},
-    </p>
-
-    <p style="text-align:right; margin:0 0 12px;">
-      חשבונית עסקה מספר <b>${rec.fields?.business_number || rec.id}</b><br/>
+      שלום,<br/>
+      מעדכנים כי החשבונית שהונפקה על ידי <b>${rec.fields?.supplier_name || "הספק"}</b><br/>
+      עבור עסקה מספר <b>${rec.fields?.business_number || rec.id}</b><br/>
       על סך <b>${rec.fields?.amount?.toLocaleString() || "-"} ש"ח</b><br/>
       הועברה לתשלום.
     </p>
 
     <p style="text-align:right; margin-top:12px;">
-      התשלום יבוצע עד <b>30 יום</b>.
+      התשלום צפוי להתבצע עד <b>30 יום</b>.
     </p>
 
     <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;"/>
@@ -1046,8 +1045,8 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
       🧾 נשלח אוטומטית ממערכת ניהול ההוצאות
     </p>
   </div>
-  `,
-  });
+`,
+      });
     } catch (err) {
       console.error("[download-and-send] async email failed:", err);
     }
