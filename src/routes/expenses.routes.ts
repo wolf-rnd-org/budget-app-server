@@ -11,9 +11,15 @@ import { SalaryPayloadSchema, createSalaryExpense } from "../services/expenses.s
 import { sendEmail } from "../services/email.service.js";
 import { getUserClaims } from "../services/auth.service.js";
 import { resolveUserId } from "../utils/authCtx.js";
+// import { getCurrentUserEmail, getEmailByUserId } from "../services/auth.service.js";
 
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
+import { Readable } from "stream";
+import { pipeline } from "node:stream";
+import { promisify } from "node:util";
+const pump = promisify(pipeline);
+
 // Note: categories enrichment now reads from expense row fields directly
 
 // Resolve a program identifier to its Airtable record ID.
@@ -911,43 +917,15 @@ function normalizeAttachments(v: any): Array<{ url: string; filename?: string }>
   return [];
 }
 
-// GET /expenses/:id/files/:field/:index -> 302 redirect to attachment URL
-r.get("/:id/files/:field/:index", async (req, res, next) => {
-  try {
-    const { id, field, index } = req.params as { id: string; field: string; index: string };
-    const allowed = new Set(["invoice_file", "bank_details_file"]);
-    if (!allowed.has(field)) {
-      return res.status(400).json({ error: "validation_error", message: "Invalid field", details: { field } });
-    }
-    const rec = await base("expenses").find(id);
-    const files = normalizeAttachments((rec.fields as any)[field]);
-    const i = Number(index);
-    if (!Number.isInteger(i) || i < 0 || i >= files.length) {
-      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
-    }
-    const file = files[i];
-    if (!file || !file.url) {
-      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
-    }
-    return res.redirect(302, String(file.url));
-  } catch (e) {
-    next(e);
-  }
-});
-function makeFilename(field: string, expenseId: string, supplier: string, i: number) {
-  const safe = String(supplier || "").trim().replace(/[^\w\u0590-\u05FF-]+/g, "_");
-  return `${field}_${safe || "supplier"}_${expenseId}_${i + 1}`;
-}
 
-// GET /expenses/:id/files/:field/:index/download-and-send
-r.get("/:id/files/:field/:index/download-and-send", async (req, res, next) => {
+// GET /expenses/:id/files/:field/:index/download - download the file only
+r.get("/:id/files/:field/:index/download", async (req, res, next) => {
   try {
     const { id, field, index } = req.params as { id: string; field: string; index: string };
     const allowed = new Set(["invoice_file", "bank_details_file", "receipt_file"]);
     if (!allowed.has(field)) {
       return res.status(400).json({ error: "validation_error", message: "Invalid field", details: { field } });
     }
-
     const rec = await base("expenses").find(id);
     const files = normalizeAttachments((rec.fields as any)[field]);
     const i = Number(index);
@@ -955,28 +933,71 @@ r.get("/:id/files/:field/:index/download-and-send", async (req, res, next) => {
       return res.status(404).json({ error: "not_found", message: "Attachment not found" });
     }
 
-    const expenseUserId = (rec.fields as any)?.user_id; // אם נשמר על ההוצאה
-    const userId = resolveUserId(req, expenseUserId);
-    let operatorEmail: string | undefined;
+    const metaFile = files[i];
+    const fileUrl = String(metaFile?.url);
+    const originalName = (metaFile as any)?.filename || (metaFile as any)?.name || `expense_${rec.id}_${field}_${i + 1}`;
+
+    const asciiName = String(originalName).replace(/[^\x20-\x7E]+/g, "_").replace(/[\\";:,]/g, "_");
+    const filenameStar = encodeURIComponent(String(originalName)).replace(/['()]/g, escape).replace(/\*/g, "%2A");
+
+    const fetched = await fetch(fileUrl).catch((err: any) => {
+      console.error("[download] fetch failed:", err);
+      return null as any;
+    });
+    if (!fetched || !fetched.ok) {
+      const status = fetched?.status || 502;
+      const msg = fetched?.statusText || "Failed to fetch attachment";
+      return res.status(status).json({ error: "download_failed", message: msg });
+    }
+
+    const contentType = fetched.headers.get("content-type") || "application/octet-stream";
+    const contentLengthHeader = fetched.headers.get("content-length");
+   res.setHeader("Content-Type", contentType);
+res.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${filenameStar}`);
+if (contentLengthHeader) {
+  res.setHeader("Content-Length", contentLengthHeader);
+}
+// לתת לדפדפן לראות מיד כותרות (מאיץ TTFB)
+if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders();
+
+// להזרים ישירות ללא טעינה לזיכרון
+const nodeStream = Readable.fromWeb(fetched.body as any);
+await pump(nodeStream, res);
+return; // אין צורך ב-res.status/end – ה-pipeline סוגר את התגובה
+  } catch (e) {
+    return next(e);
+  }
+});
+
+// GET /expenses/:id/files/:field/:index/download-and-send
+r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
+  const { id, field, index } = req.params as { id: string; field: string; index: string };
+
+  // 1) מפנים מיד להורדה – חוויית משתמש מהירה
+  const toUrl = `${req.baseUrl}/${encodeURIComponent(id)}/files/${encodeURIComponent(field)}/${encodeURIComponent(index)}/download`;
+  res.redirect(303, toUrl);
+
+  // 2) שולחים מייל ברקע – בלי לחסום את המשתמש
+  setImmediate(async () => {
     try {
-      const me = await getUserClaims(userId, "BUDGETS");
-      operatorEmail = me?.email;
-    } catch (e) {
-      console.warn("[download-and-send] getUserClaims failed:", e);
-    }
-    // const metaFile = files[i];
-    // const fileUrl = String(metaFile.url);
-    // const filename = metaFile.filename || makeFilename(field, rec.id, (rec.fields as any)?.supplier_name || "", i);
-    // const me = await getUserClaims(userId, "BUDGETS");
-    // operatorEmail = me?.email;
-    const to = String((rec.fields as any)?.supplier_email || "").trim();
-    if (!to) {
-      return res.status(400).json({ error: "validation_error", message: "Missing supplier_email" });
-    }
+      // כל העבודה הכבדה כאן, אחרי שהתגובה כבר יצאה
+      const rec = await base("expenses").find(id);
+
+      const to = String((rec.fields as any)?.supplier_email || "").trim();
+      if (!to) return; 
+
+      let operatorEmail: string | undefined = undefined;
+      const userIdRaw = (req.query["user_id"] ?? req.query["userId"]) as unknown;
+      if (typeof userIdRaw === "string" || typeof userIdRaw === "number") {
+        const uid = Number(userIdRaw);
+        if (Number.isFinite(uid) && uid > 0) {
+          try { operatorEmail = await getEmailByUserId(uid); } catch {}
+        }
+      }
+      const ccList = Array.from(new Set([operatorEmail].filter(Boolean))) as string[];
     void sendEmail({
       to,
-      // cc: "r0548547387@gmail.com",
-      bcc: operatorEmail || "",
+      ...(ccList.length > 0 ? { cc: ccList } : {}),
 
       subject: "חשבונית הועברה לתשלום",
       text: `שלום ${rec.fields?.supplier_name || "לקוח יקר"},
@@ -1026,17 +1047,11 @@ r.get("/:id/files/:field/:index/download-and-send", async (req, res, next) => {
     </p>
   </div>
   `,
-    }).catch(err => console.error("[download-and-send] email send failed:", err));
-    return res.status(202).json({
-      ok: true,
-      queued: true,
-      to,
-      bcc: operatorEmail
-    });
-
-  } catch (e) {
-    return next(e);   
-  }
+  });
+    } catch (err) {
+      console.error("[download-and-send] async email failed:", err);
+    }
+  });
 });
 
 
@@ -1063,3 +1078,92 @@ r.get("/:id", async (req, res, next) => {
     next(e);
   }
 });
+
+// // POST /expenses/:id/send-receipt - send receipt email decoupled from download
+// // Body: { user_id?: number }
+// r.post("/:id/send-receipt", async (req, res, next) => {
+//   try {
+//     const id = String(req.params.id || "").trim();
+//     if (!id) return res.status(400).json({ error: "validation_error", message: "id is required" });
+
+//     const rec = await base("expenses").find(id);
+
+//     const to = String((rec.fields as any)?.supplier_email || "").trim();
+//     if (!to) {
+//       return res.status(400).json({ error: "validation_error", message: "Missing supplier_email" });
+//     }
+
+//     const operatorEmail: string | undefined =
+//       String((rec.fields as any)?.operator_email || "").trim() || undefined;
+//     const currentUserEmail = await getCurrentUserEmail(req);
+
+//     let requestedUserEmail: string | undefined = undefined;
+//     const userIdRaw = (req.body?.user_id ?? req.query["user_id"] ?? req.query["userId"]) as unknown;
+//     if (typeof userIdRaw === "string" || typeof userIdRaw === "number") {
+//       const uid = Number(userIdRaw);
+//       if (Number.isFinite(uid) && uid > 0) {
+//         requestedUserEmail = await getEmailByUserId(uid);
+//       }
+//     }
+
+//     const bccList = Array.from(
+//       new Set([operatorEmail, currentUserEmail, requestedUserEmail].filter(Boolean))
+//     ) as string[];
+
+//     // עזרות לפני ה־sendEmail
+//     const supplier = String(rec.fields?.supplier_name || "לקוח יקר");
+//     const businessNumber = String(rec.fields?.business_number || rec.id);
+//     const amount =
+//       typeof rec.fields?.amount === "number"
+//         ? rec.fields.amount.toLocaleString("he-IL")
+//         : String(rec.fields?.amount || "-");
+
+//     await sendEmail({
+//       to,
+//       ...(bccList.length > 0 ? { bcc: bccList } : {}),
+//       subject: "אישור קבלה",
+//       text: `שלום ${supplier}
+// קבלה מספר ${businessNumber}
+// על סך ${amount} ₪
+// התקבלה בהצלחה. תודה!`,
+//       html: `
+// <div dir="rtl" style="
+//   font-family:'Assistant', Arial, sans-serif;
+//   background-color:#f9fafb;
+//   color:#222;
+//   padding:24px;
+//   border-radius:10px;
+//   max-width:600px;
+//   margin:auto;
+//   line-height:1.8;
+//   box-shadow:0 0 8px rgba(0,0,0,0.08);
+// ">
+//   <h2 style="text-align:right; color:#2b3a67; margin-top:0;">
+//     אישור קבלה
+//   </h2>
+
+//   <p style="text-align:right;">
+//     שלום ${supplier},
+//   </p>
+
+//   <p style="text-align:right; margin:0 0 12px;">
+//     קבלה מספר <b>${businessNumber}</b><br/>
+//     על סך <b>${amount} ₪</b><br/>
+//     התקבלה בהצלחה. תודה!
+//   </p>
+
+//   <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;"/>
+
+//   <p style="text-align:right; color:#555; font-size:0.9em;">
+//     הודעה זו נשלחה אוטומטית ממערכת ניהול ההוצאות.
+//   </p>
+// </div>
+// `,
+//     });
+
+//     return res.json({ ok: true });
+//   } catch (err) {
+//     console.error("[send-receipt] failed:", err);
+//     return res.status(502).json({ ok: false, error: "email_failed" });
+//   }
+// }); 
