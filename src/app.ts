@@ -9,10 +9,12 @@ import invoiceRoutes from "./routes/invoice.routes.js";
 import budgetsRoutes from "./routes/budgets.routes.js";
 import categoriesRoutes from "./routes/categories.routes.js";
 import fundingSourcesRouter from "./routes/fundingSources.router.js";
+import emailRouter from './routes/email.routes.js'; 
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Ensure large JSON payloads (e.g., base64 attachments) are parsed before routes
+app.use(express.json({ limit: '15mb' }));
 
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -26,6 +28,7 @@ app.use("/categories", categoriesRoutes);
 app.use("/auth", authRoutes);
 app.use("/documents", invoiceRoutes);
 app.use("/" /* או "/api" */, budgetsRoutes);
+app.use('/api/emails', emailRouter);
 
 app.use(notFound);
 app.use(errorHandler);
