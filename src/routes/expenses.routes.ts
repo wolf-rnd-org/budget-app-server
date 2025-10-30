@@ -983,6 +983,10 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
       // כל העבודה הכבדה כאן, אחרי שהתגובה כבר יצאה
       const rec = await base("expenses").find(id);
 
+      // Only send email and advance status when current status is 'new'
+      const currentStatus = String((rec.fields as any)?.status || "").trim();
+      if (currentStatus !== "new") return;
+
       const to = String((rec.fields as any)?.supplier_email || "").trim();
       if (!to) return;
 
@@ -1047,6 +1051,14 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
   </div>
 `,
       });
+
+      // Advance status from 'new' to next status (e.g., 'sent_for_payment')
+      try {
+        const nextStatus = getNextStatus(currentStatus);
+        await svc.updateExpense(id, { status: nextStatus });
+      } catch (e) {
+        console.error("[download-and-send] status update failed:", e);
+      }
     } catch (err) {
       console.error("[download-and-send] async email failed:", err);
     }
