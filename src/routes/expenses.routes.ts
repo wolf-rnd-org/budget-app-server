@@ -12,7 +12,7 @@ import { sendEmail } from "../services/email.service.js";
 import { getUserClaims } from "../services/auth.service.js";
 import { resolveUserId } from "../utils/authCtx.js";
 // import { getCurrentUserEmail, getEmailByUserId } from "../services/auth.service.js";
-import{getEmailByUserId} from "../services/auth.service.js"
+import { getEmailByUserId } from "../services/auth.service.js"
 // Simple lookup functions (inline implementation)
 import { base } from "../utils/airtableConfig.js";
 import { Readable } from "stream";
@@ -984,7 +984,7 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
       const rec = await base("expenses").find(id);
 
       // Only send email and advance status when current status is 'new'
-      const currentStatus = String((rec.fields as any)?.status || "").trim();
+      const currentStatus = String((rec.fields as any)?.status || "").trim().toLowerCase();
       if (currentStatus !== "new") return;
 
       const to = String((rec.fields as any)?.supplier_email || "").trim();
@@ -999,12 +999,13 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
         }
       }
       const ccList = Array.from(new Set([operatorEmail].filter(Boolean))) as string[];
-      void sendEmail({
-        to,
-        ...(ccList.length > 0 ? { cc: ccList } : {}),
+      try {
+        await sendEmail({
+          to,
+          ...(ccList.length > 0 ? { cc: ccList } : {}),
 
-      subject: "חשבונית הועברה לתשלום",
-        text: `שלום,
+          subject: "חשבונית הועברה לתשלום",
+          text: `שלום,
 מעדכנים כי החשבונית שהונפקה על ידי ${rec.fields?.supplier_name || "הספק"}
 עבור עסקה מספר ${rec.fields?.business_number || rec.id}
 על סך ${rec.fields?.amount?.toLocaleString() || "-"} ש"ח
@@ -1013,7 +1014,7 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
 
 בברכה,
 צוות הנהלת החשבונות של וולף`,
-        html: `
+          html: `
   <div dir="rtl" style="
       font-family:'Assistant', Arial, sans-serif;
       background-color:#f9fafb;
@@ -1050,11 +1051,17 @@ r.get("/:id/files/:field/:index/download-and-send", (req, res) => {
     </p>
   </div>
 `,
-      });
-
+        });
+      } catch (e) {
+        console.error("[download-and-send] email failed:", e);
+        return; // לא מקדמים אם המייל נכשל
+      }
+      const rec2 = await base("expenses").find(id);
+      const statusBeforeUpdate = String((rec2.fields as any)?.status || "").trim().toLowerCase();
+      if (statusBeforeUpdate !== "new") return;
       // Advance status from 'new' to next status (e.g., 'sent_for_payment')
       try {
-        const nextStatus = getNextStatus(currentStatus);
+        const nextStatus = getNextStatus(statusBeforeUpdate);
         await svc.updateExpense(id, { status: nextStatus });
       } catch (e) {
         console.error("[download-and-send] status update failed:", e);
