@@ -917,6 +917,33 @@ function normalizeAttachments(v: any): Array<{ url: string; filename?: string }>
   return [];
 }
 
+// GET /expenses/:id/files/:field/:index -> 302 redirect to attachment URL
+r.get("/:id/files/:field/:index", async (req, res, next) => {
+  try {
+    const { id, field, index } = req.params as { id: string; field: string; index: string };
+    const allowed = new Set(["invoice_file", "bank_details_file"]);
+    if (!allowed.has(field)) {
+      return res.status(400).json({ error: "validation_error", message: "Invalid field", details: { field } });
+    }
+    const rec = await base("expenses").find(id);
+    const files = normalizeAttachments((rec.fields as any)[field]);
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= files.length) {
+      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
+    }
+    const file = files[i];
+    if (!file || !file.url) {
+      return res.status(404).json({ error: "not_found", message: "Attachment not found" });
+    }
+    return res.redirect(302, String(file.url));
+  } catch (e) {
+    next(e);
+  }
+});
+function makeFilename(field: string, expenseId: string, supplier: string, i: number) {
+  const safe = String(supplier || "").trim().replace(/[^\w\u0590-\u05FF-]+/g, "_");
+  return `${field}_${safe || "supplier"}_${expenseId}_${i + 1}`;
+}
 
 // GET /expenses/:id/files/:field/:index/download - download the file only
 r.get("/:id/files/:field/:index/download", async (req, res, next) => {
